@@ -6,17 +6,17 @@ Created on Sat Sep  9 16:20:03 2017
 """
 
 #%%
-
 import matplotlib
-matplotlib.use("TkAgg")
+import matplotlib.pyplot  as plt
+import matplotlib.image as mpimg
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
 from matplotlib.figure import Figure
-
 from tkinter import filedialog
 import tkinter as tk
 from tkinter import ttk
+from PIL import ImageTk, Image
 
-
+matplotlib.use("TkAgg")
 LARGE_FONT= ("Verdana", 12)
 
 
@@ -37,7 +37,7 @@ class GUI(tk.Tk):
 
         self.frames = {}
 
-        for F in (StartPage, Settings, PageTwo, PageThree):
+        for F in (StartPage, SettingsPage, SimulatorPage, PageThree):
 
             frame = F(container, self)
 
@@ -45,7 +45,7 @@ class GUI(tk.Tk):
 
             frame.grid(row=0, column=0, sticky=tk.N+tk.E+tk.S+tk.W)
 
-        self.show_frame(Settings)
+        self.show_frame(SimulatorPage)
 
     def show_frame(self, cont):
 
@@ -61,11 +61,11 @@ class StartPage(tk.Frame):
         label.pack(pady=10,padx=10)
 
         button = ttk.Button(self, text="Settings",
-                            command=lambda: controller.show_frame(Settings))
+                            command=lambda: controller.show_frame(SettingsPage))
         button.pack()
 
         button2 = ttk.Button(self, text="Visit Page 2",
-                            command=lambda: controller.show_frame(PageTwo))
+                            command=lambda: controller.show_frame(SimulatorPage))
         button2.pack()
 
         button3 = ttk.Button(self, text="Graph Page",
@@ -73,31 +73,31 @@ class StartPage(tk.Frame):
         button3.pack()
 
 
-class Settings(tk.Frame):
+class SettingsPage(tk.Frame):
 
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
-        main_container = tk.Frame(self,bg="brown")
+        main_container = tk.Frame(self)
         main_container.grid_columnconfigure(0, weight = 1)
         main_container.grid( sticky="nsew")
         self.grid_columnconfigure(0, weight = 1)
         
-        top_container = tk.Frame(main_container,bg="pink")
+        top_container = tk.Frame(main_container)
         top_container.grid_columnconfigure(0, weight = 1)
         top_container.grid(sticky="nsew")
         frame_name = tk.Label(top_container, text="Settings", font=LARGE_FONT)
         frame_name.grid()
         
-        settings_container = tk.Frame(main_container,bg = "red")
+        settings_container = tk.Frame(main_container)
         settings_container.grid(sticky=tk.N+tk.E+tk.S+tk.W)
-        left_container = tk.Frame(settings_container,bg = "blue")
+        left_container = tk.Frame(settings_container)
         left_container.grid(row = 1,column = 0, sticky="nsew")
-        mid_container = tk.Frame(settings_container,bg = "white")
+        mid_container = tk.Frame(settings_container)
         mid_container.grid(row = 1,column = 1, sticky="nsew")
-        right_container = tk.Frame(settings_container,bg = "green")
+        right_container = tk.Frame(settings_container)
         right_container.grid(row = 1,column = 2, sticky="nsew")
         
-        footer_container = tk.Frame(main_container,bg="pink")
+        footer_container = tk.Frame(main_container)
         footer_container.grid_columnconfigure(0, weight = 1)
         footer_container.grid(sticky = "nsew")
         
@@ -114,26 +114,42 @@ class Settings(tk.Frame):
 #        Car settings 
 # =============================================================================
 
-        load_gg_label = tk.Label(left_container, text = "Default_GG.bmp")
+        self.gg_path = tk.StringVar()
+        self.gg_path.set("Default_GG.bmp")
+        load_gg_label = ttk.Label(left_container, textvariable = self.gg_path)
         load_gg_label.grid(row = 1, column = 1, sticky = "w", padx=4)
-        load_gg_btn = tk.Button(left_container, text =  "Select GG",
-                                command = lambda: filedialog.askopenfilename())
+        load_gg_btn = ttk.Button(left_container, text =  "Select GG",
+                                command = self.load_gg)
         load_gg_btn.grid(row = 1, column = 0, sticky = "e", padx=4)
-        length_label = tk.Label(left_container, text = "Length:")
+        
+        self.length = tk.DoubleVar()
+        self.length.set(1.0)
+        length_label = ttk.Label(left_container, text = "Length:")
         length_label.grid(row = 2, column = 0, sticky = "e", padx=4)
-        length_entry = tk.Entry(left_container)
+        length_entry = ttk.Entry(left_container,
+                                 textvariable = self.length)
         length_entry.grid(row = 2, column = 1, sticky = "w", padx=4)
-        width_label = tk.Label(left_container, text = "Width:")
+
+        self.width = tk.DoubleVar()
+        self.width.set(1.0)
+        width_label = ttk.Label(left_container, text = "Width:")
         width_label.grid(row = 3, column = 0, sticky = "e", padx=4)
-        width_entry = tk.Entry(left_container)
+        width_entry = ttk.Entry(left_container ,
+                                textvariable = self.width)
         width_entry.grid(row = 3, column = 1, sticky = "w", padx=4)
-        map_the_track_label = tk.Label(left_container, text = "Map the track?")
+        
+        self.map_track = tk.IntVar()
+        self.map_track.set(0)
+        map_the_track_label = ttk.Label(left_container, text = "Map the track?")
         map_the_track_label.grid(row = 4, column = 0, sticky = "e", padx=4)
-        map_the_track_check = tk.Checkbutton(left_container)
+        map_the_track_check = ttk.Checkbutton(left_container, variable = self.map_track)
         map_the_track_check.grid(row = 4, column = 1, sticky = "w", padx=4)
-        sensor_mode_label = tk.Label(left_container, text = "Sensor mode")
+        
+        self.sensor_mode = tk.StringVar()
+        self.sensor_mode.set("local_LIDAR")
+        sensor_mode_label = ttk.Label(left_container, text = "Sensor mode")
         sensor_mode_label.grid(row = 5 , column = 0, sticky = "e", padx=4)    
-        sensor_mode = ttk.Combobox ( left_container, values = ("local_LIDAR","global_LIDAR"))
+        sensor_mode = ttk.Combobox ( left_container, values = ("local_LIDAR","global_LIDAR"), textvariable = self.sensor_mode)
         sensor_mode.grid(row = 5, column = 1, sticky = "w", padx=4)
         
         for row_num in range(left_container.grid_size()[1]):
@@ -142,73 +158,174 @@ class Settings(tk.Frame):
 # =============================================================================
 #       Track settings  
 # =============================================================================
-        load_track_label = tk.Label(mid_container, text = "Default_track.bmp")
+        self.track_path = tk.StringVar()
+        self.track_path.set("Default_track.bmp")
+        load_track_label = ttk.Label(mid_container, textvariable = self.track_path)
         load_track_label.grid(row = 1, column = 1, sticky = "w", padx=4)
-        load_track_btn = tk.Button(mid_container, text =  "Select track",
-                                command = lambda: filedialog.askopenfilename())
+        load_track_btn = ttk.Button(mid_container, text =  "Select track",
+                                command = self.load_track)
         load_track_btn.grid(row = 1, column = 0, sticky = "e", padx = 4)
-        time_step_lable = tk.Label (mid_container, text = "Timestep")
+        
+        self.time_step = tk.DoubleVar()
+        self.time_step.set(1.0)
+        time_step_lable = ttk.Label (mid_container, text = "Timestep")
         time_step_lable.grid(row = 2, column = 0, stick = "e", padx = 4)
-        time_step_entry = tk.Entry(mid_container)
+        time_step_entry = ttk.Entry(mid_container, textvariable = self.time_step)
         time_step_entry.grid(row = 2, column = 1, sticky = "w", padx = 4)
-        obstacles_label = tk.Label(mid_container, text = "Obstacles?")
+        
+        self.obstacles = tk.IntVar()
+        self.obstacles.set(0)
+        obstacles_label = ttk.Label(mid_container, text = "Obstacles?")
         obstacles_label.grid(row = 3, column = 0, sticky = "e", padx=4)
-        obstacles_check = tk.Checkbutton(mid_container)
+        obstacles_check = ttk.Checkbutton(mid_container, variable = self.obstacles)
         obstacles_check.grid(row = 3, column = 1, sticky = "w", padx=4)
-        obstacles_type_label = tk.Label(mid_container, text = "Static/Dinamic")
+        
+        self.obstacles_type = tk.StringVar()
+        self.obstacles_type.set("Static")
+        obstacles_type_label = ttk.Label(mid_container, text = "Static/Dinamic")
         obstacles_type_label.grid(row = 4 , column = 0, sticky = "e", padx=4)    
-        obstacles_type = ttk.Combobox ( mid_container, values = ("Static","Dinamic"))
+        obstacles_type = ttk.Combobox ( mid_container, values = ("Static","Dinamic"),
+                                       textvariable = self.obstacles_type)
         obstacles_type.grid(row = 4, column = 1, sticky = "w", padx=4)
-        draw_track_label = tk.Label(mid_container, text = "Draw track?")
+        
+        self.draw_track = tk.IntVar()
+        self.draw_track.set(0)
+        draw_track_label = ttk.Label(mid_container, text = "Draw track?")
         draw_track_label.grid(row = 5, column = 0, sticky = "e", padx=4)
-        draw_track_check = tk.Checkbutton(mid_container)
+        draw_track_check = ttk.Checkbutton(mid_container, variable = self.draw_track)
         draw_track_check.grid(row = 5, column = 1, sticky = "w", padx=4)
 # =============================================================================
 #       NN Settings
 # =============================================================================
-        epochs_input = tk.Entry(right_container)
+        
+        self.epochs = tk.IntVar()
+        self.epochs.set("10000")
+        epochs_input = ttk.Entry(right_container, textvariable = self.epochs )
         epochs_input.grid(row = 1 ,  column = 1, sticky = "w", padx = 4)
-        epochs_label = tk.Label (right_container, text = "Number of epochs:")
+        epochs_label = ttk.Label (right_container, text = "Number of epochs:")
         epochs_label.grid(row = 1, column = 0, sticky = "e", padx = 4)
         
-        load_nn_checkbox = tk.Checkbutton(right_container)
+        self.load_nn = tk.IntVar()
+        self.load_nn.set("0")
+        load_nn_checkbox = ttk.Checkbutton(right_container, variable = self.load_nn)
         load_nn_checkbox.grid(row = 2, column = 1, sticky = "w", padx = 4)
-        load_nn_label = tk.Label(right_container,text = "Load NN model?")
+        load_nn_label = ttk.Label(right_container,text = "Load NN model?")
         load_nn_label.grid(row = 2, column = 0, sticky = "e", padx = 4)
         
-        load_nn_btn_label = tk.Label(right_container, text = "Default_NN.bmp")
+        
+        self.nn_path = tk.StringVar()
+        self.nn_path.set("Default_NN.bmp")
+        load_nn_btn_label = ttk.Label(right_container, textvariable = self.nn_path)
         load_nn_btn_label.grid(row = 3, column = 1, sticky = "w", padx=4)
-        load_nn_btn = tk.Button(right_container, text =  "Select NN",
-                                command = lambda: filedialog.askopenfilename())
+        load_nn_btn = ttk.Button(right_container, text =  "Select NN",
+                                command = self.load_nn)
         load_nn_btn.grid(row = 3, column = 0, sticky = "e", padx = 4)  
         
-        save_nn_checkbox = tk.Checkbutton(right_container)
+        self.save_nn = tk.IntVar()
+        self.save_nn.set("0")
+        save_nn_checkbox = ttk.Checkbutton(right_container, variable = self.save_nn)
         save_nn_checkbox.grid(row = 4, column = 1, sticky = "w", padx = 4)
-        save_nn_label = tk.Label(right_container,text = "Save NN model?")
+        save_nn_label = ttk.Label(right_container,text = "Save NN model?")
         save_nn_label.grid(row = 4, column = 0, sticky = "e", padx = 4)
        
 # =============================================================================
 #       Footer  
 # =============================================================================
-        go_btn = tk.Button(footer_container, text =  "GO!",
-                                command = (lambda: print("GO!!!")))
+        go_btn = ttk.Button(footer_container, text =  "GO!",
+                                command=lambda: controller.show_frame(SimulatorPage))
         go_btn.grid(sticky = "nsew", pady = 4, padx = 4)
+    
 
-class PageTwo(tk.Frame):
+    def load_gg(self):
+        self.gg_path.set(filedialog.askopenfilename())
+    def load_track(self):
+        self.track_path.set( filedialog.askopenfilename())
+    def load_nn(self):
+        self.nn_path.set(filedialog.askopenfilename())
+        
+        
+class SimulatorPage(tk.Frame):
 
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
-        label = tk.Label(self, text="Page Two!!!", font=LARGE_FONT)
-        label.pack(pady=10,padx=10)
+        main_container = tk.Frame(self)
+        main_container.grid_columnconfigure(0, weight = 3)
+        main_container.grid( sticky="nsew")
+        self.grid_columnconfigure(0, weight = 1)
+        
+        top_container = tk.Frame(main_container)
+        top_container.grid_columnconfigure(0, weight = 1)
+        top_container.grid(sticky="nsew")
+        frame_name = tk.Label(top_container, text="Settings", font=LARGE_FONT)
+        frame_name.grid()
+        
+        settings_container = tk.Frame(main_container)
+        settings_container.grid(sticky=tk.N+tk.E+tk.S+tk.W)
+        left_container = ttk.Frame(settings_container)
+        left_container.grid(row = 1,column = 0, sticky="nsew")
+        right_container = ttk.Frame(settings_container)
+        right_container.grid(row = 1,column = 1, sticky="nsew")
+        
+        left_header = tk.Label(left_container, text = "Track", font=LARGE_FONT)
+        left_header.grid(columnspan = 2, sticky="nsew")
+        right_header = tk.Label(right_container, text = "Controls", font=LARGE_FONT)
+        right_header.grid(columnspan = 2, sticky="nsew")
+        for col_num in range(settings_container.grid_size()[0]):
+            settings_container.grid_columnconfigure(col_num, weight = 1)
 
-        button1 = ttk.Button(self, text="Back to Home",
-                            command=lambda: controller.show_frame(StartPage))
-        button1.pack()
+# =============================================================================
+#       Track and progress bar
+# =============================================================================
 
-        button2 = ttk.Button(self, text="Page One",
-                            command=lambda: controller.show_frame(PageOne))
-        button2.pack()
+#       Track
+            
+#       TODO REMOVE NEXT LINE
 
+        path = "track.png"
+        img = Image.open(path)
+        track = plt.figure()
+        DPI = track.get_dpi()
+        track.set_size_inches((img.size[0]/float(DPI)*0.5,img.size[1]/float(DPI)*0.5))
+        plt.imshow(img,aspect='auto')
+        ax = track.gca()
+        ax.set_axis_off()
+        canvas = FigureCanvasTkAgg(track, left_container)
+        canvas.show()
+        canvas.get_tk_widget().grid()
+
+#        toolbar = NavigationToolbar2TkAgg(canvas, left_container)
+#        toolbar.update()
+        canvas._tkcanvas.grid()
+
+#       Progressbar
+        progress = tk.IntVar() 
+        progressbar = ttk.Progressbar(left_container, mode="determinate",
+                                      variable = progress, maximum = 100)
+        
+        progressbar.grid()
+        progressbar.step()
+        progress.set(50)
+        
+# =============================================================================
+#       Simulator control
+# =============================================================================
+
+        btn1=ttk.Button(right_container, text="Settings",
+                            command=lambda: controller.show_frame(SettingsPage))
+        btn1.grid(row = 1)
+        btn2=ttk.Button(right_container, text="Stop",
+                            command=lambda: print ("Stop"))
+        btn2.grid(row = 2)
+        btn3=ttk.Button(right_container, text="Start",
+                            command=lambda: print ("Start"))
+        btn3.grid(row = 3)
+        
+        draw_track_label = ttk.Label(right_container, text = "Draw track?")
+        draw_track_label.grid(row = 4, column = 0, sticky = "e", padx=4)
+        draw_track_check = ttk.Checkbutton(right_container)
+        draw_track_check.grid(row = 4, column = 1, sticky = "w", padx=4)
+        
+        
 
 class PageThree(tk.Frame):
 
@@ -221,19 +338,7 @@ class PageThree(tk.Frame):
                             command=lambda: controller.show_frame(StartPage))
         button1.pack()
 
-        f = Figure(figsize=(5,5), dpi=100)
-        a = f.add_subplot(111)
-        a.plot([1,2,3,4,5,6,7,8],[5,6,1,3,8,9,3,5])
 
-        
-
-        canvas = FigureCanvasTkAgg(f, self)
-        canvas.show()
-        canvas.get_tk_widget().pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
-
-        toolbar = NavigationToolbar2TkAgg(canvas, self)
-        toolbar.update()
-        canvas._tkcanvas.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
         
 
