@@ -25,7 +25,60 @@ class GUI(tk.Tk):
     def __init__(self, *args, **kwargs):
         
         tk.Tk.__init__(self, *args, **kwargs)
-
+        
+# =============================================================================
+#        Variable declarations
+# =============================================================================
+# =============================================================================
+#         Car
+# =============================================================================
+        self.gg_path = tk.StringVar()
+        self.gg_path.set("Default_GG.bmp")
+     
+        self.length = tk.DoubleVar()
+        self.length.set(1.0)
+        
+        self.width = tk.DoubleVar()
+        self.width.set(1.0)
+        
+        self.map_track = tk.IntVar()
+        self.map_track.set(0)
+        
+        self.sensor_mode = tk.StringVar()
+        self.sensor_mode.set("local_LIDAR")
+# =============================================================================
+#         Track
+# =============================================================================
+        self.track_path = tk.StringVar()
+        self.track_path.set("Default_track.bmp")
+        
+        self.time_step = tk.DoubleVar()
+        self.time_step.set(1.0)
+        
+        self.draw_track = tk.IntVar()
+        self.draw_track.set(0)
+        
+        self.obstacles = tk.IntVar()
+        self.obstacles.set(0)
+        
+        self.obstacles_type = tk.StringVar()
+        self.obstacles_type.set("Static")
+        
+# =============================================================================
+#         NN
+# =============================================================================
+        self.epochs = tk.IntVar()
+        self.epochs.set("10000")
+        
+        self.load_nn = tk.IntVar()
+        self.load_nn.set("0")
+        
+        self.nn_path = tk.StringVar()
+        self.nn_path.set("Default_NN.bmp")
+        
+        self.save_nn = tk.IntVar()
+        self.save_nn.set("0")
+        
         self.iconbitmap("Race_car.ico")
         tk.Tk.wm_title(self, "Racing car simulator")
         self.geometry("800x800")
@@ -114,42 +167,38 @@ class SettingsPage(tk.Frame):
 #        Car settings 
 # =============================================================================
 
-        self.gg_path = tk.StringVar()
-        self.gg_path.set("Default_GG.bmp")
-        load_gg_label = ttk.Label(left_container, textvariable = self.gg_path)
+
+        load_gg_label = ttk.Label(left_container, textvariable = parent.master.gg_path)
         load_gg_label.grid(row = 1, column = 1, sticky = "w", padx=4)
         load_gg_btn = ttk.Button(left_container, text =  "Select GG",
-                                command = self.load_gg)
+                                command = lambda: self.load_gg(parent.master))
         load_gg_btn.grid(row = 1, column = 0, sticky = "e", padx=4)
         
-        self.length = tk.DoubleVar()
-        self.length.set(1.0)
+
         length_label = ttk.Label(left_container, text = "Length:")
         length_label.grid(row = 2, column = 0, sticky = "e", padx=4)
         length_entry = ttk.Entry(left_container,
-                                 textvariable = self.length)
+                                 textvariable = parent.master.length)
         length_entry.grid(row = 2, column = 1, sticky = "w", padx=4)
 
-        self.width = tk.DoubleVar()
-        self.width.set(1.0)
+
         width_label = ttk.Label(left_container, text = "Width:")
         width_label.grid(row = 3, column = 0, sticky = "e", padx=4)
         width_entry = ttk.Entry(left_container ,
-                                textvariable = self.width)
+                                textvariable = parent.master.width)
         width_entry.grid(row = 3, column = 1, sticky = "w", padx=4)
         
-        self.map_track = tk.IntVar()
-        self.map_track.set(0)
+        
         map_the_track_label = ttk.Label(left_container, text = "Map the track?")
         map_the_track_label.grid(row = 4, column = 0, sticky = "e", padx=4)
-        map_the_track_check = ttk.Checkbutton(left_container, variable = self.map_track)
+        map_the_track_check = ttk.Checkbutton(left_container, variable = parent.master.map_track)
         map_the_track_check.grid(row = 4, column = 1, sticky = "w", padx=4)
         
-        self.sensor_mode = tk.StringVar()
-        self.sensor_mode.set("local_LIDAR")
+        
         sensor_mode_label = ttk.Label(left_container, text = "Sensor mode")
         sensor_mode_label.grid(row = 5 , column = 0, sticky = "e", padx=4)    
-        sensor_mode = ttk.Combobox ( left_container, values = ("local_LIDAR","global_LIDAR"), textvariable = self.sensor_mode)
+        sensor_mode = ttk.Combobox ( left_container, values = ("local_LIDAR","global_LIDAR"),
+                                    textvariable = parent.master.sensor_mode)
         sensor_mode.grid(row = 5, column = 1, sticky = "w", padx=4)
         
         for row_num in range(left_container.grid_size()[1]):
@@ -158,72 +207,63 @@ class SettingsPage(tk.Frame):
 # =============================================================================
 #       Track settings  
 # =============================================================================
-        self.track_path = tk.StringVar()
-        self.track_path.set("Default_track.bmp")
-        load_track_label = ttk.Label(mid_container, textvariable = self.track_path)
+        
+        load_track_label = ttk.Label(mid_container, textvariable = parent.master.track_path)
         load_track_label.grid(row = 1, column = 1, sticky = "w", padx=4)
         load_track_btn = ttk.Button(mid_container, text =  "Select track",
-                                command = self.load_track)
+                                command = lambda: self.load_track(parent.master))
         load_track_btn.grid(row = 1, column = 0, sticky = "e", padx = 4)
         
-        self.time_step = tk.DoubleVar()
-        self.time_step.set(1.0)
+        
         time_step_lable = ttk.Label (mid_container, text = "Timestep")
         time_step_lable.grid(row = 2, column = 0, stick = "e", padx = 4)
-        time_step_entry = ttk.Entry(mid_container, textvariable = self.time_step)
+        time_step_entry = ttk.Entry(mid_container, textvariable = parent.master.time_step)
         time_step_entry.grid(row = 2, column = 1, sticky = "w", padx = 4)
         
-        self.obstacles = tk.IntVar()
-        self.obstacles.set(0)
+        
         obstacles_label = ttk.Label(mid_container, text = "Obstacles?")
         obstacles_label.grid(row = 3, column = 0, sticky = "e", padx=4)
-        obstacles_check = ttk.Checkbutton(mid_container, variable = self.obstacles)
+        obstacles_check = ttk.Checkbutton(mid_container, variable = parent.master.obstacles)
         obstacles_check.grid(row = 3, column = 1, sticky = "w", padx=4)
         
-        self.obstacles_type = tk.StringVar()
-        self.obstacles_type.set("Static")
+        
         obstacles_type_label = ttk.Label(mid_container, text = "Static/Dinamic")
         obstacles_type_label.grid(row = 4 , column = 0, sticky = "e", padx=4)    
         obstacles_type = ttk.Combobox ( mid_container, values = ("Static","Dinamic"),
-                                       textvariable = self.obstacles_type)
+                                       textvariable = parent.master.obstacles_type)
         obstacles_type.grid(row = 4, column = 1, sticky = "w", padx=4)
         
-        self.draw_track = tk.IntVar()
-        self.draw_track.set(0)
+
         draw_track_label = ttk.Label(mid_container, text = "Draw track?")
         draw_track_label.grid(row = 5, column = 0, sticky = "e", padx=4)
-        draw_track_check = ttk.Checkbutton(mid_container, variable = self.draw_track)
+        draw_track_check = ttk.Checkbutton(mid_container, variable = parent.master.draw_track)
         draw_track_check.grid(row = 5, column = 1, sticky = "w", padx=4)
 # =============================================================================
 #       NN Settings
 # =============================================================================
         
-        self.epochs = tk.IntVar()
-        self.epochs.set("10000")
-        epochs_input = ttk.Entry(right_container, textvariable = self.epochs )
+        
+        epochs_input = ttk.Entry(right_container, textvariable = parent.master.epochs )
         epochs_input.grid(row = 1 ,  column = 1, sticky = "w", padx = 4)
         epochs_label = ttk.Label (right_container, text = "Number of epochs:")
         epochs_label.grid(row = 1, column = 0, sticky = "e", padx = 4)
         
-        self.load_nn = tk.IntVar()
-        self.load_nn.set("0")
-        load_nn_checkbox = ttk.Checkbutton(right_container, variable = self.load_nn)
+        
+        load_nn_checkbox = ttk.Checkbutton(right_container, variable = parent.master.load_nn)
         load_nn_checkbox.grid(row = 2, column = 1, sticky = "w", padx = 4)
         load_nn_label = ttk.Label(right_container,text = "Load NN model?")
         load_nn_label.grid(row = 2, column = 0, sticky = "e", padx = 4)
         
         
-        self.nn_path = tk.StringVar()
-        self.nn_path.set("Default_NN.bmp")
-        load_nn_btn_label = ttk.Label(right_container, textvariable = self.nn_path)
+        
+        load_nn_btn_label = ttk.Label(right_container, textvariable = parent.master.nn_path)
         load_nn_btn_label.grid(row = 3, column = 1, sticky = "w", padx=4)
         load_nn_btn = ttk.Button(right_container, text =  "Select NN",
-                                command = self.load_nn)
+                                command = lambda:  self.load_nn(parent.master))
         load_nn_btn.grid(row = 3, column = 0, sticky = "e", padx = 4)  
         
-        self.save_nn = tk.IntVar()
-        self.save_nn.set("0")
-        save_nn_checkbox = ttk.Checkbutton(right_container, variable = self.save_nn)
+        
+        save_nn_checkbox = ttk.Checkbutton(right_container, variable = parent.master.save_nn)
         save_nn_checkbox.grid(row = 4, column = 1, sticky = "w", padx = 4)
         save_nn_label = ttk.Label(right_container,text = "Save NN model?")
         save_nn_label.grid(row = 4, column = 0, sticky = "e", padx = 4)
@@ -234,14 +274,23 @@ class SettingsPage(tk.Frame):
         go_btn = ttk.Button(footer_container, text =  "GO!",
                                 command=lambda: controller.show_frame(SimulatorPage))
         go_btn.grid(sticky = "nsew", pady = 4, padx = 4)
+  
     
-
-    def load_gg(self):
-        self.gg_path.set(filedialog.askopenfilename())
-    def load_track(self):
-        self.track_path.set( filedialog.askopenfilename())
-    def load_nn(self):
-        self.nn_path.set(filedialog.askopenfilename())
+# =============================================================================
+#   Handler functions
+# =============================================================================
+    def load_gg(self,parent):
+        path = filedialog.askopenfilename()
+        if path:
+            parent.gg_path.set( path )
+    def load_track(self,parent):
+        path = filedialog.askopenfilename()
+        if path:
+            parent.track_path.set( path )
+    def load_nn(self,parent):
+        path = filedialog.askopenfilename()
+        if path:
+            parent.nn_path.set( path )
         
         
 class SimulatorPage(tk.Frame):
@@ -320,9 +369,10 @@ class SimulatorPage(tk.Frame):
                             command=lambda: print ("Start"))
         btn3.grid(row = 3)
         
+
         draw_track_label = ttk.Label(right_container, text = "Draw track?")
         draw_track_label.grid(row = 4, column = 0, sticky = "e", padx=4)
-        draw_track_check = ttk.Checkbutton(right_container)
+        draw_track_check = ttk.Checkbutton(right_container, variable = parent.master.draw_track)
         draw_track_check.grid(row = 4, column = 1, sticky = "w", padx=4)
         
         
