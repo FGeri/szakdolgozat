@@ -54,7 +54,7 @@ class GUI(tk.Tk):
 #         Track
 # =============================================================================
         self.track_path = tk.StringVar()
-        self.track_path.set("Default_track.bmp")
+        self.track_path.set("track_tmp.png")
         
         self.time_step = tk.DoubleVar()
         self.time_step.set(1.0)
@@ -73,7 +73,6 @@ class GUI(tk.Tk):
 # =============================================================================
         self.epochs = tk.IntVar()
         self.epochs.set("10000")
-        
         self.load_nn = tk.IntVar()
         self.load_nn.set("0")
         
@@ -102,7 +101,7 @@ class GUI(tk.Tk):
 
             frame.grid(row=0, column=0, sticky=tk.N+tk.E+tk.S+tk.W)
 
-        self.show_frame(SimulatorPage)
+        self.show_frame(SettingsPage)
 
     def show_frame(self, cont):
 
@@ -339,7 +338,7 @@ class SimulatorPage(tk.Frame):
             
 #       TODO REMOVE NEXT LINE
 
-        path = "track.png"
+        path = "track_tmp.png"
         img = Image.open(path)
         track = plt.figure()
         DPI = track.get_dpi()

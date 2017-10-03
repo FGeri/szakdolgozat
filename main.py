@@ -6,49 +6,36 @@ Created on Fri Sep 29 19:33:26 2017
 """
 
 #%%
+
 import numpy as np
-import Environment
-import Car
-from Frontend import *
+import math
+from environment import Environment
+from car import Car
+import pandas as pd
+#import keras
+from frontend import *
 from copy import deepcopy
-#
-
-
-def start():
-    
-    print('GOOOOOO!!!')
-    
-    
-
-
-
-gui = GUI(handler=start_simulation)
-gui.mainloop()
-
-
 
 def start_simulation(GUI):
-    
-# =============================================================================
-#     TODO Initialise our pandas database with max_simulation_data
-# =============================================================================
-    max_simulation_data = 1000
-    env = Environment(GUI.track_path,np.array([[252,30],[252,80]]),
+    max_simulation_laps = 5
+    env = Environment(GUI.track_path.get(),np.array([[252,30],[252,80]]),
                 np.array([[251,30],[251,80]]),[(0,0),(0,1)],np.array([255,255,255]),time_step=1)
-    car = Car(GUI.width,GUI.height,GUI.gg_path,env.start_position,0)
-    for i in np.arange(max_simulation_data):
+    car = Car(GUI.width.get(),GUI.length.get(),GUI.gg_path.get(),env.start_position,0,math.pi/2)
+    data=[]
+    print(env.track.shape)
+    for i in np.arange(max_simulation_laps):
 # =============================================================================
 #         TODO Randomly initialise (switchable) our starting 
 # =============================================================================
-        car.reset(env.start_position,0)
+        car.reset(env.start_position,17,math.pi/2)
         over = False
-                
-        while over:
+        tmp=1
+        while not over and tmp<30:
 # =============================================================================
 #           TODO  We get the our action here (acc, steer_angle)
 # =============================================================================
-             
-            acc = 1
+            tmp+=1
+            acc = 0
             steer_angle = 0
             prev_pos = deepcopy(car.pos)
             prev_speed = deepcopy(car.speed)
@@ -61,13 +48,22 @@ def start_simulation(GUI):
 #            (prev_pos,prev_dir,prev_speed),(acc,steer_angle),r,(car.pos,car.dir,car.speed)
 #            OR local info?
 # =============================================================================
-      
+
+            state = np.concatenate([prev_pos[:],np.array([prev_speed,prev_dir])],axis=0)
+            action = np.array([acc, steer_angle])
+            r = -1 if over else 0
+            r = np.expand_dims(r,axis = 0)
+            next_state = np.concatenate([car.pos[:],np.array([car.speed,car.dir])],axis=0)
+            experience_raw = np.concatenate([state[:],action[:],r,next_state[:]],axis=0)
+            experience=pd.DataFrame(np.expand_dims(experience_raw,axis = 0),
+                columns = ["s1","s2","s3","s4","a1","a2","r","s'1","s'2","s'3","s'4"])
+            data.append(experience)            
 # =============================================================================
-#         TODO Once we have the data, we split them into to sections.
+#         TODO Once we have the data, we split them into two sections.
 #           Train data and validation data.We normalise them 
 # =============================================================================
-    
-            
+    data = pd.concat(data,ignore_index=True)
+    print(data)        
 # =============================================================================
 #   TODO We tran the network with the train data. (R only first then R+max(Q')).
 #   Then at validation we stop when the error is the lowest
@@ -82,9 +78,12 @@ def start_simulation(GUI):
 
 
 
+# =============================================================================
+# Main program
+# =============================================================================
 
-
-
+gui = GUI(handler=start_simulation)
+gui.mainloop()
 
 
 
