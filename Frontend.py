@@ -24,8 +24,12 @@ class GUI(tk.Tk):
 
     def __init__(self, *args, **kwargs):
         
-        tk.Tk.__init__(self, *args, **kwargs)
-        
+        tmp_kwargs={}
+        for k,v in kwargs.items():
+            if not k =='handler':
+                tmp_kwargs[k]=v
+        tk.Tk.__init__(self, *args, **tmp_kwargs)
+        self.start_simulation_handler=kwargs['handler']
 # =============================================================================
 #        Variable declarations
 # =============================================================================
@@ -104,7 +108,10 @@ class GUI(tk.Tk):
 
         frame = self.frames[cont]
         frame.tkraise()
-
+        
+    def start_simulation(self):
+        self.show_frame(SimulatorPage)
+        self.start_simulation_handler(self)
         
 class StartPage(tk.Frame):
 
@@ -272,7 +279,8 @@ class SettingsPage(tk.Frame):
 #       Footer  
 # =============================================================================
         go_btn = ttk.Button(footer_container, text =  "GO!",
-                                command=lambda: controller.show_frame(SimulatorPage))
+                            
+                                command=lambda: controller.start_simulation())
         go_btn.grid(sticky = "nsew", pady = 4, padx = 4)
   
     
@@ -291,6 +299,7 @@ class SettingsPage(tk.Frame):
         path = filedialog.askopenfilename()
         if path:
             parent.nn_path.set( path )
+
         
         
 class SimulatorPage(tk.Frame):
@@ -391,6 +400,3 @@ class PageThree(tk.Frame):
 
 
         
-
-gui = GUI()
-gui.mainloop()

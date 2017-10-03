@@ -17,7 +17,7 @@ class Car:
         self.speed=0
         self.dir=start_dir
         #        TODO gg_diag-ot beolvasni és elcachelni
-    def reset (self,start_pos,start_orientation):
+    def reset (self,start_pos,start_dir,speed):
         self.pos=np.array(start_pos)
-        self.speed=0
+        self.speed=np.array(speed)
         self.dir=start_dir

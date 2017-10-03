@@ -16,19 +16,21 @@ class Environment:
     track
     obstacles
     time_step
-    start_line
-    finish_line
-    start_position
+    start_line #np array [[startpoint x,y], [endpoint x,y]  
+    finish_line #np array [[startpoint x,y], [endpoint x,y] 
     gg_diag
     color_of_track
     
     def __init__(self,path_of_track,start_line,
-                 finish_line,start_position,obstacles,color_of_track,time_step=1):
-        self.track=io.imread(path_of_track)
+                 finish_line,obstacles,color_of_track,time_step=1):
+        
+        self.track=scipy.misc.imread(path_of_track)        
         self.start_line = np.array(start_line)
         self.finish_line = np.array(finish_line)
-        self.start_position = np.array(start_position)
-        self.obstacles = np.array(obstacles)
+        
+        self.start_position = np.array([round((start_line[0][0]+start_line[0][1])/2),
+                                        round((start_line[1][0]+start_line[1][1])/2)])
+        self.obstacles = set(obstacles)
         self.time_step = time_step
         self.color_of_track = color_of_track
     
@@ -42,8 +44,21 @@ class Environment:
         pass
     
     
+# =============================================================================
+#     Initialises the obstacles,stores them in a list with tupple elements
+#     Options: static/dynamic
+#              number of obstacles
+#              Size?
+#              
+# =============================================================================
+    def init_obstacles(self,options):
+        pass
+    
+    
     def step(self,car,acc,steer_angle):
-        
+# =============================================================================
+#       TODO Review the algorythm
+# =============================================================================
         delta_dir = car.speed+acc / car.length * math.tan(steer_angle)
         delta_x =  car.speed+acc * math.sin(car.dir)
         delta_y =  car.speed+acc * math.cos(car.dir)
@@ -57,7 +72,7 @@ class Environment:
 #     of the track
 #     Returns true if collided
 # =============================================================================
-    def detectCollision(self,car):
+    def detect_collision(self,car):
         collision = False
         theta = car.dir
         rot_matrix = np.array([[-math.sin(theta),math.cos(theta)],[math.cos(theta),math.sin(theta)]]) 
@@ -85,26 +100,47 @@ class Environment:
     #        np.all(np.all(a==np.array([[[1]],[[2]],[[3]]]),axis = 0))
             np.all(np.all(fields==np.array(self.color_of_track),axis = 2))
             
+#            Checks if still on track
             if not np.all(np.all(fields==np.array(self.color_of_track),axis = 2)):
                 collision = True
         
-#        TODO Check collision with obstacles
+            rotated_indexes_trans=rotated_indexes.transpose()
+            rotated_indexes_trans = list(map((lambda x : (x[1],x[0])),rotated_indexes_trans))
+            rotated_indexes_set = set(rotated_indexes_trans)
+            if not self.obstacles.isdisjoint(rotated_indexes_set):
+                collision = True
         return collision
     
 # =============================================================================
 #     Checks if a game is over by runnin out of the track or colliding 
 #     with an obstacles or reaching the finish
 #     Returns: 
-#       isOver:True if the lap is over
+#       over:True if the lap is over
 #       collision: False if the car reached the finish
 # =============================================================================
-    def isOver(self,car):
+    def is_over(self,car,prev_pos):
+        collision = self.detect_collision(car)
+        if (prev_pos[0] < self.finish_line[0][0] and car.pos[0] >=self.finish_line[0][0] 
+            and prev_pos[1] > self.finish_line[0][1] and prev_pos[1] < self.finish_line[1][1]):
+            over = True
+        elif (prev_pos[0] >= self.finish_line[0][0] and car.pos[0] < self.finish_line[0][0] 
+            and prev_pos[1] > self.finish_line[0][1] and prev_pos[1] < self.finish_line[1][1]):
+            over = True
+            collision = True
+        else:
+            over = False
+        
+        return over, collision
+# =============================================================================
+#     Updates the picture on the simulator page
+# =============================================================================
+    def draw_track(self):
         pass
-    
-    
+
+
 # =============================================================================
-#     
+#     Computes the reward based on the position of the car
 # =============================================================================
-    def getReward(self):
+    def get_reward(self):
         pass
     
