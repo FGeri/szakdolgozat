@@ -20,14 +20,14 @@ def start_simulation(GUI):
     max_simulation_laps = 5
     env = Environment(GUI.track_path.get(),np.array([[252,30],[252,80]]),
                 np.array([[251,30],[251,80]]),[(0,0),(0,1)],np.array([255,255,255]),time_step=1)
-    car = Car(GUI.width.get(),GUI.length.get(),GUI.gg_path.get(),env.start_position,0,math.pi/2)
+    car = Car(GUI.width.get(),GUI.length.get(),GUI.gg_path.get(),env.start_position,env.start_speed,env.start_dir)
     data=[]
-    print(env.track.shape)
     for i in np.arange(max_simulation_laps):
 # =============================================================================
 #         TODO Randomly initialise (switchable) our starting 
 # =============================================================================
-        car.reset(env.start_position,17,math.pi/2)
+        env.reset()
+        car.reset(env.start_position,env.start_speed,env.start_dir)
         over = False
         tmp=1
         while not over and tmp<30:
@@ -51,7 +51,16 @@ def start_simulation(GUI):
 
             state = np.concatenate([prev_pos[:],np.array([prev_speed,prev_dir])],axis=0)
             action = np.array([acc, steer_angle])
-            r = -1 if over else 0
+# =============================================================================
+#             Observing reward
+# =============================================================================
+            if over and result:
+                r = 50
+            elif over and not result:
+                r = -10
+            elif not over:
+#                print(car.pos)
+                r = env.get_reward(car.pos)
             r = np.expand_dims(r,axis = 0)
             next_state = np.concatenate([car.pos[:],np.array([car.speed,car.dir])],axis=0)
             experience_raw = np.concatenate([state[:],action[:],r,next_state[:]],axis=0)
