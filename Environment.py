@@ -50,10 +50,11 @@ class Environment:
         self.track=scipy.misc.imread(path_of_track)        
         self.start_line = np.array(start_line)
         self.finish_line = np.array(finish_line)
-        self.start_speed = 17
+        self.start_speed = 1
         self.start_dir = math.pi/2
-        self.start_position = np.array([round((start_line[0,0]+start_line[1,0])/2),
-                                        round((start_line[0,1]+start_line[1,1])/2)])
+#        self.start_dir = 0
+        self.start_position = np.array([round((start_line[0,0]+start_line[1,0])/2)+30,
+                                        round((start_line[0,1]+start_line[1,1])/2)+10])
         self.obstacles = set(obstacles)
         self.time_step = copy(time_step)
         self.color_of_track = np.array(color_of_track)
@@ -65,6 +66,7 @@ class Environment:
             for y in range(self.track.shape[0]):
                 if np.array_equal(self.track[y, x, :], self.color_of_track):
                     self.track_indexes.append([x, y])
+        
     def reset (self,random_init = False):
         self.prev_dist = 0
         if random_init:
@@ -111,18 +113,18 @@ class Environment:
     def __detect_collision(self,car):
         collision = False
         theta = car.dir
-        rot_matrix = np.array([[math.cos(theta),-math.sin(theta)],[math.sin(theta),math.cos(theta)]]) 
+        rot_matrix = np.array([[math.cos(theta),-math.sin(theta)],[math.sin(theta),math.cos(theta)]],dtype=float) 
         chassis = np.ones([int(car.length),int(car.width)])
         indexes_tmp = np.where(chassis==1)
-        indexes = np.array(indexes_tmp)
+        indexes = np.array(indexes_tmp,dtype=float)
         indexes[0,:] -= math.floor((car.length-1)/2)
         indexes[1,:] -= math.floor((car.width-1)/2)
         indexes=indexes[::-1,:]
-        rotated_indexes = np.round(rot_matrix.dot(indexes))
-        
+        rotated_indexes = rot_matrix.dot(indexes)
         rotated_indexes[0,:] += car.pos[0]
         rotated_indexes[1,:] += car.pos[1]
-        rotated_indexes=rotated_indexes.astype(int)
+        rotated_indexes = np.round(rotated_indexes)
+        rotated_indexes = rotated_indexes.astype(int)
         if (np.any(rotated_indexes[0,:] < 0) or np.any(rotated_indexes[0,:]>=self.track.shape[1]) or
                   np.any(rotated_indexes[1,:] < 0) or np.any(rotated_indexes[1,:]>=self.track.shape[0])):
             collision = True
@@ -148,11 +150,11 @@ class Environment:
 # =============================================================================
     def is_over(self,car,prev_pos):
         collision = self.__detect_collision(car)
-        if (prev_pos[0] < self.finish_line[0,0] and car.pos[0] >=self.finish_line[0,0] 
-            and prev_pos[1] > self.finish_line[0,1] and prev_pos[1] < self.finish_line[1,1]):
+        if (prev_pos[0] < self.start_line[0,0] and car.pos[0] >=self.start_line[0,0] 
+            and prev_pos[1] > self.start_line[0,1] and prev_pos[1] < self.finish_line[1,1]):
             over = True
-        elif (prev_pos[0] > self.finish_line[0,0] and car.pos[0] <= self.finish_line[0,0] 
-            and prev_pos[1] > self.finish_line[0,1] and prev_pos[1] < self.finish_line[1,1]):
+        elif (prev_pos[0] > self.start_line[0,0] and car.pos[0] <= self.start_line[0,0] 
+            and prev_pos[1] > self.start_line[0,1] and prev_pos[1] < self.start_line[1,1]):
             over = True
             collision = True
         else:
@@ -169,9 +171,9 @@ class Environment:
 # =============================================================================
 #     Computes the reward based on the position of the car
 # =============================================================================
-    def get_reward(self, pos):
+    def get_reward(self, pos_original):
         
-            pos = np.array(pos, dtype='int32')
+            pos = np.array(pos_original, dtype='int32')
             tmp = [0]
             r = 0
             flag = True
@@ -198,7 +200,7 @@ class Environment:
             tmp = np.all(tmp==np.array([0,0,255]),axis = 2)    
             tmp=tmp.astype(int)
             indexes = [p[0] for p in np.nonzero(tmp)]
-            offset = [indexes[1]-r, indexes[0]-r]
+            offset = [indexes[1]-r+dx[0], indexes[0]-r+dy[0]]
             pos = np.array(pos + offset)
             current_dist = self.dists[tuple(pos)]
             reward = current_dist - self.prev_dist
@@ -233,6 +235,7 @@ class Environment:
         dirs = [RIGHT, UP, LEFT, DOWN]
         direction_idx = 0
         point = start_point
+        dist_dict[tuple(point)] = 0
         while True:
             dist += 1
             left_turn = dirs[(direction_idx+1) % 4]
@@ -245,7 +248,7 @@ class Environment:
             else:
                 direction_idx = (direction_idx - 1) % 4
                 point = point + right_turn
-            dist_dict[tuple(point)] = dist
             if np.array_equal(point, start_point):
                 break
+            dist_dict[tuple(point)] = dist
         return dist_dict

@@ -8,7 +8,6 @@ Created on Sat Sep  9 16:20:03 2017
 #%%
 import matplotlib
 import matplotlib.pyplot  as plt
-import matplotlib.image as mpimg
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
 from matplotlib.figure import Figure
 from tkinter import filedialog
@@ -40,10 +39,10 @@ class GUI(tk.Tk):
         self.gg_path.set("Default_GG.bmp")
      
         self.length = tk.DoubleVar()
-        self.length.set(1.0)
+        self.length.set(12.0)
         
         self.width = tk.DoubleVar()
-        self.width.set(1.0)
+        self.width.set(6.0)
         
         self.map_track = tk.IntVar()
         self.map_track.set(0)
@@ -111,7 +110,14 @@ class GUI(tk.Tk):
     def start_simulation(self):
         self.show_frame(SimulatorPage)
         self.start_simulation_handler(self)
-        
+    
+    def draw_track_callback(self):
+#        self
+        DPI = self.track_figure_handle.get_dpi()
+        self.track_figure_handle.set_size_inches((self.track_img.size[0]/float(DPI),self.track_img.size[1]/float(DPI)))
+        ax = self.track_figure_handle.gca()
+        ax.set_axis_off()
+        self.track_canvas_handle.draw()
 class StartPage(tk.Frame):
 
     def __init__(self, parent, controller):
@@ -339,14 +345,18 @@ class SimulatorPage(tk.Frame):
 #       TODO REMOVE NEXT LINE
 
         path = "track_tmp.png"
-        img = Image.open(path)
+        controller.track_img = Image.open(path)
         track = plt.figure()
+        
         DPI = track.get_dpi()
-        track.set_size_inches((img.size[0]/float(DPI)*0.5,img.size[1]/float(DPI)*0.5))
-        plt.imshow(img,aspect='auto')
+        track.set_size_inches((controller.track_img.size[0]/float(DPI),controller.track_img.size[1]/float(DPI)))
+        plt.imshow(controller.track_img,aspect='auto')
         ax = track.gca()
         ax.set_axis_off()
-        canvas = FigureCanvasTkAgg(track, left_container)
+        controller.track_figure_handle = track
+        canvas = FigureCanvasTkAgg(track, left_container) 
+        
+        controller.track_canvas_handle = canvas
         canvas.show()
         canvas.get_tk_widget().grid()
 
