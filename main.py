@@ -110,17 +110,17 @@ def start_simulation(GUI):
     
     for i in range(max_simulation_laps):
 # =============================================================================
-#         TODO Randomly initialise (switchable) our starting 
+#         TODO Random5ly initialise (switchable) our starting 
 # =============================================================================
         env.reset(False)
         car.reset(env.start_position,env.start_speed,env.start_dir)
         over = False
 #        tmp=1
         cumulative_r = 0
-        state = np.array([(car.pos[0]*2/GUI.track_img.size[0])-1,
+        state = np.array(np.atleast_2d([(car.pos[0]*2/GUI.track_img.size[0])-1,
                               (car.pos[1]*2/GUI.track_img.size[1])-1,
                               car.speed/30,
-                              car.dir/(math.pi*2)])
+                              car.dir/(math.pi*2)]))
         while not over:
 # =============================================================================
 #           TODO  We get the our action here (acc, steer_angle)
@@ -130,8 +130,8 @@ def start_simulation(GUI):
             noise = np.zeros([1,action_dim])
             noise[0][0] = max(epsilon, 0) * np.random.normal(0,0.5)
             noise[0][1] = max(epsilon, 0) * np.random.normal(0,0.5)
-            
-            a_original = actor.model.predict(state.reshape(1, -1))
+            #            TODO LIDAR.
+            a_original = actor.model.predict([state[:,0:2],state[:,2:4]])
             a = a_original[0] + noise[0]
             acc, steer_angle = a*np.array([ACC_SCALE,STEER_ANGLE_SCALE])
             #            acc = np.random.uniform(-5,5)
@@ -149,10 +149,10 @@ def start_simulation(GUI):
 #            OR local info?
 # =============================================================================
 
-            state = np.array([(prev_pos[0]*2/GUI.track_img.size[0])-1,
+            state = np.array(np.atleast_2d([(prev_pos[0]*2/GUI.track_img.size[0])-1,
                               (prev_pos[1]*2/GUI.track_img.size[1])-1,
                               prev_speed/30,
-                              prev_dir/(math.pi*2)])
+                              prev_dir/(math.pi*2)]))
 # =============================================================================
 #             Observing reward
 # =============================================================================
@@ -170,7 +170,7 @@ def start_simulation(GUI):
                               car.speed/30,
                               car.dir/(math.pi*2)])
 #            TODO normalise the data
-            experience = [state,a,r,next_state,over]
+            experience = [state.reshape(-1),a,r,next_state.reshape(-1),over]
             buff.add_item(experience)
             car_color = 'r' if over and not result else 'k'
 # =============================================================================
@@ -213,13 +213,16 @@ def start_simulation(GUI):
 #   Then at validation we stop when the error is the lowest
 # =============================================================================
             batch = buff.get_batch(BATCH_SIZE)
-            states = np.asarray([e[0] for e in batch])
-            actions = np.asarray([e[1] for e in batch])
+            states = np.asarray(np.atleast_2d([e[0] for e in batch]))
+            actions = np.asarray(np.atleast_2d([e[1] for e in batch]))
             rewards = np.asarray([e[2] for e in batch])
-            new_states = np.asarray([e[3] for e in batch])
+            new_states = np.asarray(np.atleast_2d([e[3] for e in batch]))
             overs = np.asarray([e[4] for e in batch])
             y = np.asarray([e[1] for e in batch])
-            target_q_values = critic.target_model.predict([new_states, actor.target_model.predict(new_states)])  
+            
+#            TODO LIDAR
+            target_q_values = critic.target_model.predict([new_states[:,0:2],new_states[:,2:4],
+                                                           actor.target_model.predict([new_states[:,0:2],new_states[:,2:4]])])  
            
             for k in range(len(batch)):
                 if overs[k]:
@@ -227,9 +230,10 @@ def start_simulation(GUI):
                 else:
                     y[k] = rewards[k] + GAMMA*target_q_values[k]
                     
-            
-            critic.model.train_on_batch([states,actions], y) 
-            a_for_grad = actor.model.predict(states)
+            #            TODO LIDAR
+            critic.model.train_on_batch([states[:,0:2],states[:,2:4],actions], y)
+            #            TODO LIDAR
+            a_for_grad = actor.model.predict([states[:,0:2],states[:,2:4]])
             grads = critic.gradients(states, a_for_grad)
             actor.train(states, grads)
             actor.target_train()

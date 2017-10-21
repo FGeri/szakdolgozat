@@ -16,8 +16,8 @@ import tensorflow as tf
 import keras.backend as K
 
 
-HIDDEN_1 = 75
-HIDDEN_2 = 150
+HIDDEN_1 = 80
+HIDDEN_2 = 40
 
 
 class Actor:
@@ -28,8 +28,8 @@ class Actor:
         self.LR = LR
 
         K.set_session(sess)
-        self.model , self.weights, self.state = self.create_network(state_size, action_size)   
-        self.target_model, self.target_weights, self.target_state = self.create_network(state_size, action_size) 
+        self.model , self.weights, self.state_1,self.state_2 = self.create_network(state_size, action_size)   
+        self.target_model, self.target_weights, self.target_state_1,self.target_state_2 = self.create_network(state_size, action_size) 
         self.action_gradient = tf.placeholder(tf.float32,[None, action_size])
         self.params_grad = tf.gradients(self.model.output, self.weights, -self.action_gradient)
         grads = zip(self.params_grad, self.weights)
@@ -39,7 +39,8 @@ class Actor:
     
     def train(self, states, action_grads):
         self.sess.run(self.optimize, feed_dict={
-            self.state: states,
+            self.state_1: np.array(states[:,0:2]),
+            self.state_2: np.array(states[:,2:4]),
             self.action_gradient: action_grads
         })
     
@@ -51,14 +52,22 @@ class Actor:
         self.target_model.set_weights(actor_target_weights)
         
     def create_network(self,state_size,action_dim):
-        S = Input(shape=[state_size])   
-        h0 = Dense(HIDDEN_1, activation='relu')(S)
+        inp_1 = Input(shape=[state_size-2],name='state_1')
+        inp_2 = Input(shape=[2],name='state_2')
+        
+        h00 = Dense(HIDDEN_1, activation='relu')(inp_1)
+        h01 = Dense(HIDDEN_1, activation='relu')(h00)
+        h02 = Dense(HIDDEN_2, activation='relu')(h01)
+        
+        h10 = Dense(HIDDEN_1,activation = 'relu')(inp_2)
+        h11 = Dense(HIDDEN_2,activation = 'relu')(h10)
+        h2 =  Concatenate()([h02,h11]) 
 #        TODO Add batchnormalisation
 #        TODO ADd dropout?
-        h1 = Dense(HIDDEN_2, activation='relu')(h0)
-        Acceleration = Dense(1,activation='tanh')(h1)
-        Steering = Dense(1,activation='tanh')(h1)        
+        h3 = Dense(HIDDEN_2, activation='relu')(h2)
+        Acceleration = Dense(1,activation='tanh')(h3)
+        Steering = Dense(1,activation='tanh')(h3)        
         V = Concatenate()([Steering,Acceleration])          
-        model = Model(inputs=S,outputs=V)
-        return model, model.trainable_weights, S
+        model = Model(inputs=[inp_1,inp_2],outputs=V)
+        return model, model.trainable_weights, inp_1, inp_2
 

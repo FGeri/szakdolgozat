@@ -128,3 +128,9 @@ import random
 buffer = deque()
 buffer.append(["Kutya","Cica"])
 print(random.sample(buffer,1))
+#%%
+import numpy as np
+
+a = np.ones([2,2])
+print(a)
+print(a.reshape(-1))

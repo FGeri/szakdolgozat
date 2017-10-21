@@ -94,7 +94,7 @@ class GUI(tk.Tk):
 
         self.frames = {}
 
-        for F in (StartPage, SettingsPage, SimulatorPage, PageThree):
+        for F in (SettingsPage, SimulatorPage):
 
             frame = F(container, self)
 
@@ -127,25 +127,6 @@ class GUI(tk.Tk):
         ax = self.track_figure_handle.gca()
         ax.set_axis_off()
         self.track_canvas_handle.draw()
-class StartPage(tk.Frame):
-
-    def __init__(self, parent, controller):
-        tk.Frame.__init__(self,parent)
-        label = tk.Label(self, text="Start Page", font=LARGE_FONT)
-        label.pack(pady=10,padx=10)
-
-        button = ttk.Button(self, text="Settings",
-                            command=lambda: controller.show_frame(SettingsPage))
-        button.pack()
-
-        button2 = ttk.Button(self, text="Visit Page 2",
-                            command=lambda: controller.show_frame(SimulatorPage))
-        button2.pack()
-
-        button3 = ttk.Button(self, text="Graph Page",
-                            command=lambda: controller.show_frame(PageThree))
-        button3.pack()
-
 
 class SettingsPage(tk.Frame):
 
@@ -218,7 +199,7 @@ class SettingsPage(tk.Frame):
         
         sensor_mode_label = ttk.Label(left_container, text = "Sensor mode")
         sensor_mode_label.grid(row = 5 , column = 0, sticky = "e", padx=4)    
-        sensor_mode = ttk.Combobox ( left_container, values = ("local_LIDAR","global_LIDAR"),
+        sensor_mode = ttk.Combobox ( left_container, values = ("LIDAR","GLOBAL"),
                                     textvariable = parent.master.sensor_mode)
         sensor_mode.grid(row = 5, column = 1, sticky = "w", padx=4)
         
@@ -402,18 +383,6 @@ class SimulatorPage(tk.Frame):
         draw_track_check = ttk.Checkbutton(right_container, variable = parent.master.draw_track)
         draw_track_check.grid(row = 4, column = 1, sticky = "w", padx=4)
         
-        
-
-class PageThree(tk.Frame):
-
-    def __init__(self, parent, controller):
-        tk.Frame.__init__(self, parent)
-        label = tk.Label(self, text="Graph Page!", font=LARGE_FONT)
-        label.pack(pady=10,padx=10)
-
-        button1 = ttk.Button(self, text="Back to Home",
-                            command=lambda: controller.show_frame(StartPage))
-        button1.pack()
 
 
 
