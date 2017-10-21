@@ -70,7 +70,7 @@ def start_simulation(GUI):
     
     if GUI.obstacles:
         obstacles = [(0,10),(0,1)]
-    max_simulation_laps = 1000
+    max_simulation_laps = 100000
     env = Environment(GUI.track_path.get(),np.array([[252,30],[252,80]]),
                 np.array([[251,30],[251,80]]),obstacles,np.array([255,255,255]),time_step=1)
     car = Car(GUI.width.get(),GUI.length.get(),GUI.gg_path.get(),env.start_position,env.start_speed,env.start_dir)
@@ -162,7 +162,7 @@ def start_simulation(GUI):
                 r = -1
             elif not over:
 #                print(car.pos)
-                r = float(env.get_reward(car.pos)/20)
+                r = float(env.get_reward(car.pos)/18)
 #            r = np.expand_dims(r,axis = 0)
             cumulative_r = cumulative_r + r
             next_state = np.array([(car.pos[0]*2/GUI.track_img.size[0])-1,
@@ -240,7 +240,7 @@ def start_simulation(GUI):
             critic.target_train()
             
             
-        print("Cumulative reward:"+str(cumulative_r))
+        print("Episode "+str(i)+"\tCumulative reward:"+str(cumulative_r))
 # =============================================================================
 #   TODO With the trained network we test our algorythm
 # =============================================================================

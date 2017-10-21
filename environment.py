@@ -9,7 +9,7 @@ Created on Sat Sep  9 15:58:34 2017
 import numpy as np
 import math
 import matplotlib
-from copy import copy
+from copy import copy,deepcopy
 #import keras
 import scipy
 import math
@@ -18,6 +18,7 @@ from skimage import io
 from PIL import ImageTk, Image
 from scipy.integrate import ode
 from skimage.morphology import disk
+
 
 # =============================================================================
 
@@ -59,7 +60,8 @@ class Environment:
         self.time_step = copy(time_step)
         self.color_of_track = np.array(color_of_track)
         self.ode = ode(derivatives).set_integrator('dopri5')
-        self.prev_dist = 0
+        self.prev_lateral_dist = 0
+        self.prev_longit_dist = 0
         self.dists = self.__get_dists()
         self.track_indexes = []
         for x in range(self.track.shape[1]):
@@ -68,7 +70,8 @@ class Environment:
                     self.track_indexes.append([x, y])
         
     def reset (self,random_init = False):
-        self.prev_dist = 0
+        self.prev_lateral_dist = 0
+        self.prev_longit_dist = 0
         if random_init:
             self.start_speed = np.random.uniform(-30,30)
             self.start_dir = np.random.uniform(0,math.pi*2)
@@ -176,8 +179,9 @@ class Environment:
             pos = np.array(pos_original, dtype='int32')
             tmp = [0]
             r = 0
-            flag = True
-            while flag:
+            inner_flag = True
+            outer_flag = True
+            while inner_flag or outer_flag:
                 r = r+1
                 dx =[0,0]
                 dy =[0,0]
@@ -196,15 +200,27 @@ class Environment:
                 mask = np.expand_dims(mask,2)
                 mask = np.repeat(mask, 3,axis = 2)
                 tmp = mask[dy[0]:mask.shape[0]-dy[1],dx[0]:mask.shape[1]-dx[1],:] * tmp
-                flag = not np.any(np.all(tmp==np.array([0,0,255]),axis = 2))
-            tmp = np.all(tmp==np.array([0,0,255]),axis = 2)    
-            tmp=tmp.astype(int)
-            indexes = [p[0] for p in np.nonzero(tmp)]
+                next_inner_flag = not np.any(np.all(tmp==np.array([0,0,255]),axis = 2))
+                next_outer_flag = not np.any(np.all(tmp==np.array([195,195,195]),axis = 2))
+                if inner_flag and not next_inner_flag:
+                    section = deepcopy(tmp)
+                    inner_dist=deepcopy(r)
+                if outer_flag and not next_outer_flag:
+                    outer_dist=deepcopy(r)
+                inner_flag=deepcopy(next_inner_flag)
+                outer_flag=deepcopy(next_outer_flag)
+            r=inner_dist
+            section = np.all(section==np.array([0,0,255]),axis = 2)    
+            section = section.astype(int)
+            indexes = [p[0] for p in np.nonzero(section)]
             offset = [indexes[1]-r+dx[0], indexes[0]-r+dy[0]]
             pos = np.array(pos + offset)
-            current_dist = self.dists[tuple(pos)]
-            reward = current_dist - self.prev_dist
-            self.prev_dist = current_dist
+            track_width= inner_dist+outer_dist
+            longit_dist = self.dists[tuple(pos)]
+            lateral_dist = abs(inner_dist/track_width-0.5)
+            reward = (longit_dist - self.prev_longit_dist)-(lateral_dist-self.prev_lateral_dist)*10
+            self.prev_longit_dist = longit_dist
+            self.prev_lateral_dist = lateral_dist
             return reward
         
     def __get_dists(self):
