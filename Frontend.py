@@ -28,10 +28,12 @@ class GUI(tk.Tk):
             if not k =='handler':
                 tmp_kwargs[k]=v
         tk.Tk.__init__(self, *args, **tmp_kwargs)
+        self.protocol("WM_DELETE_WINDOW", self.close_handler)
         self.start_simulation_handler=kwargs['handler']
 # =============================================================================
 #        Variable declarations
 # =============================================================================
+        self.close_flag= False
 # =============================================================================
 #         Car
 # =============================================================================
@@ -58,11 +60,11 @@ class GUI(tk.Tk):
         self.time_step = tk.DoubleVar()
         self.time_step.set(1.0)
         
-        self.draw_track = tk.IntVar()
-        self.draw_track.set(0)
+        self.draw_track = tk.BooleanVar()
+        self.draw_track.set(True)
         
-        self.obstacles = tk.IntVar()
-        self.obstacles.set(0)
+        self.obstacles = tk.BooleanVar()
+        self.obstacles.set(False)
         
         self.obstacles_type = tk.StringVar()
         self.obstacles_type.set("Static")
@@ -72,14 +74,14 @@ class GUI(tk.Tk):
 # =============================================================================
         self.epochs = tk.IntVar()
         self.epochs.set("10000")
-        self.load_nn = tk.IntVar()
-        self.load_nn.set("0")
+        self.load_nn = tk.BooleanVar()
+        self.load_nn.set(False)
         
         self.nn_path = tk.StringVar()
         self.nn_path.set("Default_NN.bmp")
         
-        self.save_nn = tk.IntVar()
-        self.save_nn.set("0")
+        self.save_nn = tk.BooleanVar()
+        self.save_nn.set(True)
         
         self.iconbitmap("Race_car.ico")
         tk.Tk.wm_title(self, "Racing car simulator")
@@ -101,7 +103,14 @@ class GUI(tk.Tk):
             frame.grid(row=0, column=0, sticky=tk.N+tk.E+tk.S+tk.W)
 
         self.show_frame(SettingsPage)
-
+    
+    def close_handler(self):
+        self.close_flag = True
+        print("App is about to close")
+        self.after(200,self.close_app)
+    def close_app(self):
+        self.destroy()
+        
     def show_frame(self, cont):
 
         frame = self.frames[cont]

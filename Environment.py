@@ -50,11 +50,11 @@ class Environment:
         self.track=scipy.misc.imread(path_of_track)        
         self.start_line = np.array(start_line)
         self.finish_line = np.array(finish_line)
-        self.start_speed = 1
+        self.start_speed = 2
         self.start_dir = math.pi/2
 #        self.start_dir = 0
-        self.start_position = np.array([round((start_line[0,0]+start_line[1,0])/2)+30,
-                                        round((start_line[0,1]+start_line[1,1])/2)+10])
+        self.start_position = np.array([round((start_line[0,0]+start_line[1,0])/2),
+                                        round((start_line[0,1]+start_line[1,1])/2)])
         self.obstacles = set(obstacles)
         self.time_step = copy(time_step)
         self.color_of_track = np.array(color_of_track)
@@ -102,7 +102,7 @@ class Environment:
         self.ode.set_initial_value(y0, t0).set_f_params([acc,steer_angle,car.length])
         self.ode.integrate(self.ode.t+dt)
         car.speed = self.ode.y[2]
-        car.dir = self.ode.y[3]
+        car.dir = (self.ode.y[3]) % (2*math.pi)
         car.pos = np.array([self.ode.y[0], self.ode.y[1]]).astype(float)
 
 # =============================================================================
@@ -153,7 +153,7 @@ class Environment:
         if (prev_pos[0] < self.start_line[0,0] and car.pos[0] >=self.start_line[0,0] 
             and prev_pos[1] > self.start_line[0,1] and prev_pos[1] < self.finish_line[1,1]):
             over = True
-        elif (prev_pos[0] > self.start_line[0,0] and car.pos[0] <= self.start_line[0,0] 
+        elif (prev_pos[0] >= self.start_line[0,0] and car.pos[0] < self.start_line[0,0] 
             and prev_pos[1] > self.start_line[0,1] and prev_pos[1] < self.start_line[1,1]):
             over = True
             collision = True

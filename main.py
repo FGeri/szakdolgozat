@@ -6,10 +6,14 @@ Created on Fri Sep 29 19:33:26 2017
 """
 
 #%%
-%load_ext autoreload
-%autoreload 2
+
+from actor import Actor
+from critic import Critic
+from buffer import Buffer
+import json
 import time
 import numpy as np
+import tensorflow as tf
 import math
 import matplotlib
 import matplotlib.pyplot  as plt
@@ -18,15 +22,59 @@ from car import Car
 import pandas as pd
 #import keras
 from frontend import *
+
+from keras import backend as K
 from copy import deepcopy
 
 def start_simulation(GUI):
+    np.random.seed(123)
+    ACC_SCALE = 10.
+    STEER_ANGLE_SCALE = math.pi/2
     
-    max_simulation_laps = 10
+# =============================================================================
+#     Hyper parameters
+# =============================================================================
+    BUFFER_SIZE = 100000
+    BATCH_SIZE = 32
+    GAMMA = 0.99
+    TAU = 0.001     #Target Network HyperParameters
+    LRA = 0.0001    #Learning rate for Actor
+    LRC = 0.001     #Learning rate for Critic    
+    
+    action_dim = 2  #Steering/Acceleration
+    state_dim = 4  
+    
+    sess = tf.Session()
+    K.set_session(sess)
+
+    actor = Actor(sess, state_dim, action_dim, BATCH_SIZE, TAU, LRA)
+    critic = Critic(sess, state_dim, action_dim, BATCH_SIZE, TAU, LRC)
+    buff = Buffer(BUFFER_SIZE)
+    
+    if GUI.load_nn.get():
+        try:
+            actor.model.load_weights("actormodel.h5")
+            critic.model.load_weights("criticmodel.h5")
+            actor.target_model.load_weights("actormodel.h5")
+            critic.target_model.load_weights("criticmodel.h5")
+            print("Weight load successfully")
+        except:
+            print("Cannot find the weight")
+    
+    EXPLORE = 100000.
+#    episode_count = 2000
+#    max_steps = 100000
+    
+    epsilon = 1
+    obstacles = []
+    
+    if GUI.obstacles:
+        obstacles = [(0,10),(0,1)]
+    max_simulation_laps = 1000
     env = Environment(GUI.track_path.get(),np.array([[252,30],[252,80]]),
-                np.array([[251,30],[251,80]]),[(0,0),(0,1)],np.array([255,255,255]),time_step=1)
+                np.array([[251,30],[251,80]]),obstacles,np.array([255,255,255]),time_step=1)
     car = Car(GUI.width.get(),GUI.length.get(),GUI.gg_path.get(),env.start_position,env.start_speed,env.start_dir)
-    data=[]
+
     theta = car.dir
     rot_matrix = np.array([[math.cos(theta),-math.sin(theta)],[math.sin(theta),math.cos(theta)]],dtype=float)
     # =============================================================================
@@ -51,10 +99,16 @@ def start_simulation(GUI):
              color='k', linestyle='-', linewidth=2)
     plt.plot([chassis[0,3],chassis[0,0]], [chassis[1,3],chassis[1,0]],
              color='k', linestyle='-', linewidth=2)
+    if GUI.obstacles:
+        for obstacle in env.obstacles:
+            plt.scatter(obstacle[0], obstacle[1],1,"k")
     GUI.draw_track_callback()
     GUI.update_idletasks()
     GUI.update()
-    for i in np.arange(max_simulation_laps):
+    
+    
+    
+    for i in range(max_simulation_laps):
 # =============================================================================
 #         TODO Randomly initialise (switchable) our starting 
 # =============================================================================
@@ -62,14 +116,27 @@ def start_simulation(GUI):
         car.reset(env.start_position,env.start_speed,env.start_dir)
         over = False
 #        tmp=1
+        cumulative_r = 0
+        state = np.array([(car.pos[0]*2/GUI.track_img.size[0])-1,
+                              (car.pos[1]*2/GUI.track_img.size[1])-1,
+                              car.speed/30,
+                              car.dir/(math.pi*2)])
         while not over:
 # =============================================================================
 #           TODO  We get the our action here (acc, steer_angle)
 # =============================================================================
-#            acc = np.random.uniform(-30,30)
+            epsilon -= 1.0 / EXPLORE
+            a = np.zeros([1,action_dim])
+            noise = np.zeros([1,action_dim])
+            noise[0][0] = max(epsilon, 0) * np.random.normal(0,0.5)
+            noise[0][1] = max(epsilon, 0) * np.random.normal(0,0.5)
+            
+            a_original = actor.model.predict(state.reshape(1, -1))
+            a = a_original[0] + noise[0]
+            acc, steer_angle = a*np.array([ACC_SCALE,STEER_ANGLE_SCALE])
+            #            acc = np.random.uniform(-5,5)
 #            steer_angle = np.random.uniform(-math.pi/2,math.pi/2)
-            acc = 0
-            steer_angle = math.pi/(4*4)
+#            steer_angle = math.pi/(4*8)
             prev_pos = deepcopy(car.pos)
             prev_speed = deepcopy(car.speed)
             prev_dir = deepcopy(car.dir)
@@ -82,73 +149,107 @@ def start_simulation(GUI):
 #            OR local info?
 # =============================================================================
 
-            state = np.concatenate([prev_pos[:],np.array([prev_speed,prev_dir])],axis=0)
-            action = np.array([acc, steer_angle])
+            state = np.array([(prev_pos[0]*2/GUI.track_img.size[0])-1,
+                              (prev_pos[1]*2/GUI.track_img.size[1])-1,
+                              prev_speed/30,
+                              prev_dir/(math.pi*2)])
 # =============================================================================
 #             Observing reward
 # =============================================================================
             if over and result:
-                r = 50
+                r = 1
             elif over and not result:
-                r = -10
+                r = -1
             elif not over:
 #                print(car.pos)
-                r = env.get_reward(car.pos)
-            r = np.expand_dims(r,axis = 0)
-            next_state = np.concatenate([car.pos[:],np.array([car.speed,car.dir])],axis=0)
-            experience_raw = np.concatenate([state[:],action[:],r,next_state[:]],axis=0)
-            experience=pd.DataFrame(np.expand_dims(experience_raw,axis = 0),
-                columns = ["s1","s2","s3","s4","a1","a2","r","s'1","s'2","s'3","s'4"])
-            data.append(experience)
-            
+                r = float(env.get_reward(car.pos)/20)
+#            r = np.expand_dims(r,axis = 0)
+            cumulative_r = cumulative_r + r
+            next_state = np.array([(car.pos[0]*2/GUI.track_img.size[0])-1,
+                              (car.pos[1]*2/GUI.track_img.size[1])-1,
+                              car.speed/30,
+                              car.dir/(math.pi*2)])
+#            TODO normalise the data
+            experience = [state,a,r,next_state,over]
+            buff.add_item(experience)
             car_color = 'r' if over and not result else 'k'
 # =============================================================================
 #             Draw the track and car
 # =============================================================================
-            theta = car.dir
-            rot_matrix = np.array([[math.cos(theta),-math.sin(theta)],[math.sin(theta),math.cos(theta)]],dtype=float)
-            chassis = np.array([[0,car.width,car.width,0],[0,0,car.length,car.length]])
-            chassis[0,:] -= car.width/2
-            chassis[1,:] -= car.length/2
-            chassis = rot_matrix.dot(chassis)
-            chassis[0,:] = chassis[0,:] + car.pos[0] 
-            chassis[1,:] = chassis[1,:] + car.pos[1]
-            chassis= np.round(chassis)
-            chassis = chassis.astype(int)
-            GUI.track_figure_handle.clear()
-            track = GUI.track_figure_handle.add_subplot(111)
-            plt.imshow(GUI.track_img,aspect='auto')
-            plt.plot([env.start_line[0,0],env.start_line[1,0]], [env.start_line[0,1],
-                      env.start_line[1,1]], color='g', linestyle='-', linewidth=1)
-            plt.plot([chassis[0,0],chassis[0,1]], [chassis[1,0],chassis[1,1]],
-                     color=car_color, linestyle='-', linewidth=2)
-            plt.plot([chassis[0,1],chassis[0,2]], [chassis[1,1],chassis[1,2]],
-                     color=car_color, linestyle='-', linewidth=2)
-            plt.plot([chassis[0,2],chassis[0,3]], [chassis[1,2],chassis[1,3]],
-                     color=car_color, linestyle='-', linewidth=2)
-            plt.plot([chassis[0,3],chassis[0,0]], [chassis[1,3],chassis[1,0]],
-                     color=car_color, linestyle='-', linewidth=2)
-            GUI.draw_track_callback()
+            if GUI.close_flag:
+                return
+            if GUI.draw_track.get():
+                theta = car.dir
+                rot_matrix = np.array([[math.cos(theta),-math.sin(theta)],[math.sin(theta),math.cos(theta)]],dtype=float)
+                chassis = np.array([[0,car.width,car.width,0],[0,0,car.length,car.length]])
+                chassis[0,:] -= car.width/2
+                chassis[1,:] -= car.length/2
+                chassis = rot_matrix.dot(chassis)
+                chassis[0,:] = chassis[0,:] + car.pos[0] 
+                chassis[1,:] = chassis[1,:] + car.pos[1]
+                chassis= np.round(chassis)
+                chassis = chassis.astype(int)
+                GUI.track_figure_handle.clear()
+                track = GUI.track_figure_handle.add_subplot(111)
+                plt.imshow(GUI.track_img,aspect='auto')
+                plt.plot([env.start_line[0,0],env.start_line[1,0]], [env.start_line[0,1],
+                          env.start_line[1,1]], color='g', linestyle='-', linewidth=1)
+                plt.plot([chassis[0,0],chassis[0,1]], [chassis[1,0],chassis[1,1]],
+                         color=car_color, linestyle='-', linewidth=2)
+                plt.plot([chassis[0,1],chassis[0,2]], [chassis[1,1],chassis[1,2]],
+                         color=car_color, linestyle='-', linewidth=2)
+                plt.plot([chassis[0,2],chassis[0,3]], [chassis[1,2],chassis[1,3]],
+                         color=car_color, linestyle='-', linewidth=2)
+                plt.plot([chassis[0,3],chassis[0,0]], [chassis[1,3],chassis[1,0]],
+                         color=car_color, linestyle='-', linewidth=2)
+                if GUI.obstacles:
+                    for obstacle in env.obstacles:
+                        plt.scatter(obstacle[0], obstacle[1],1,"k")
+                GUI.draw_track_callback()
             GUI.update_idletasks()
             GUI.update()
-
-            
-# =============================================================================
-#         TODO Once we have the data, we split them into two sections.
-#           Train data and validation data.We normalise them 
-# =============================================================================
-    data = pd.concat(data,ignore_index=True)
-    print(data)        
 # =============================================================================
 #   TODO We tran the network with the train data. (R only first then R+max(Q')).
 #   Then at validation we stop when the error is the lowest
 # =============================================================================
-
-
+            batch = buff.get_batch(BATCH_SIZE)
+            states = np.asarray([e[0] for e in batch])
+            actions = np.asarray([e[1] for e in batch])
+            rewards = np.asarray([e[2] for e in batch])
+            new_states = np.asarray([e[3] for e in batch])
+            overs = np.asarray([e[4] for e in batch])
+            y = np.asarray([e[1] for e in batch])
+            target_q_values = critic.target_model.predict([new_states, actor.target_model.predict(new_states)])  
+           
+            for k in range(len(batch)):
+                if overs[k]:
+                    y[k] = rewards[k]
+                else:
+                    y[k] = rewards[k] + GAMMA*target_q_values[k]
+                    
+            
+            critic.model.train_on_batch([states,actions], y) 
+            a_for_grad = actor.model.predict(states)
+            grads = critic.gradients(states, a_for_grad)
+            actor.train(states, grads)
+            actor.target_train()
+            critic.target_train()
+            
+            
+        print("Cumulative reward:"+str(cumulative_r))
 # =============================================================================
 #   TODO With the trained network we test our algorythm
 # =============================================================================
-
+    if (GUI.save_nn.get()):
+        print("Now we save model")
+        
+        actor.model.save_weights("actormodel.h5", overwrite=True)
+        with open("actormodel.json", "w") as outfile:
+            json.dump(actor.model.to_json(), outfile)
+        
+        critic.model.save_weights("criticmodel.h5", overwrite=True)
+        with open("criticmodel.json", "w") as outfile:
+            json.dump(critic.model.to_json(), outfile)
 
 
 
