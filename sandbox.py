@@ -131,6 +131,5 @@ print(random.sample(buffer,1))
 #%%
 import numpy as np
 
-a = np.ones([2,2])
-print(a)
-print(a.reshape(-1))
+a = np.array([2,3])
+print(max(list(a[:]),0))

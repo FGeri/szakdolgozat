@@ -50,7 +50,7 @@ class GUI(tk.Tk):
         self.map_track.set(0)
         
         self.sensor_mode = tk.StringVar()
-        self.sensor_mode.set("local_LIDAR")
+        self.sensor_mode.set("LIDAR")
 # =============================================================================
 #         Track
 # =============================================================================

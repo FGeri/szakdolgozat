@@ -28,6 +28,8 @@ from copy import deepcopy
 
 def start_simulation(GUI):
     np.random.seed(123)
+    LIDAR_RESOLUTION = 30
+    LIDAR_MAX_RANGE = 80
     ACC_SCALE = 10.
     STEER_ANGLE_SCALE = math.pi/2
     
@@ -42,13 +44,16 @@ def start_simulation(GUI):
     LRC = 0.001     #Learning rate for Critic    
     
     action_dim = 2  #Steering/Acceleration
-    state_dim = 4  
+    if GUI.sensor_mode.get()=="LIDAR":
+        state_dim = LIDAR_RESOLUTION+2
+    else:
+        state_dim = 4  
     
     sess = tf.Session()
     K.set_session(sess)
 
-    actor = Actor(sess, state_dim, action_dim, BATCH_SIZE, TAU, LRA)
-    critic = Critic(sess, state_dim, action_dim, BATCH_SIZE, TAU, LRC)
+    actor = Actor(sess,GUI.sensor_mode.get(), state_dim, action_dim, BATCH_SIZE, TAU, LRA)
+    critic = Critic(sess,GUI.sensor_mode.get(), state_dim, action_dim, BATCH_SIZE, TAU, LRC)
     buff = Buffer(BUFFER_SIZE)
     
     if GUI.load_nn.get():
@@ -117,10 +122,15 @@ def start_simulation(GUI):
         over = False
 #        tmp=1
         cumulative_r = 0
-        state = np.array(np.atleast_2d([(car.pos[0]*2/GUI.track_img.size[0])-1,
-                              (car.pos[1]*2/GUI.track_img.size[1])-1,
-                              car.speed/30,
-                              car.dir/(math.pi*2)]))
+        
+        if GUI.sensor_mode.get()=="LIDAR":
+            state = np.hstack([env.get_sensor_data(car.pos, car.dir, LIDAR_RESOLUTION , LIDAR_MAX_RANGE)*2/LIDAR_MAX_RANGE-1,
+                               car.speed/40])
+        else:
+            state = np.hstack([(car.pos[0]*2/GUI.track_img.size[0])-1,
+                                  (car.pos[1]*2/GUI.track_img.size[1])-1,
+                                  car.speed/30,
+                                  car.dir/(math.pi*2)])
         while not over:
 # =============================================================================
 #           TODO  We get the our action here (acc, steer_angle)
@@ -130,8 +140,14 @@ def start_simulation(GUI):
             noise = np.zeros([1,action_dim])
             noise[0][0] = max(epsilon, 0) * np.random.normal(0,0.5)
             noise[0][1] = max(epsilon, 0) * np.random.normal(0,0.5)
-            #            TODO LIDAR.
-            a_original = actor.model.predict([state[:,0:2],state[:,2:4]])
+            if GUI.sensor_mode.get()=="LIDAR":
+                state_1 = np.atleast_2d(state[0:-1])
+                state_1 = np.expand_dims(state_1,axis=2)
+                state_2 = np.atleast_2d(state[-1])
+            else:
+                state_1 = np.atleast_2d(state[0:2])
+                state_2 = np.atleast_2d(state[2:4])
+            a_original = actor.model.predict([state_1,state_2])
             a = a_original[0] + noise[0]
             acc, steer_angle = a*np.array([ACC_SCALE,STEER_ANGLE_SCALE])
             #            acc = np.random.uniform(-5,5)
@@ -148,11 +164,14 @@ def start_simulation(GUI):
 #            (prev_pos,prev_dir,prev_speed),(acc,steer_angle),r,(car.pos,car.dir,car.speed)
 #            OR local info?
 # =============================================================================
-
-            state = np.array(np.atleast_2d([(prev_pos[0]*2/GUI.track_img.size[0])-1,
-                              (prev_pos[1]*2/GUI.track_img.size[1])-1,
-                              prev_speed/30,
-                              prev_dir/(math.pi*2)]))
+            if GUI.sensor_mode.get()=="LIDAR":
+                state = np.hstack([env.get_sensor_data(prev_pos, prev_dir, LIDAR_RESOLUTION , LIDAR_MAX_RANGE)*2/LIDAR_MAX_RANGE-1,
+                                   prev_speed/40])
+            else:
+                state = np.hstack([(prev_pos[0]*2/GUI.track_img.size[0])-1,
+                                  (prev_pos[1]*2/GUI.track_img.size[1])-1,
+                                  prev_speed/30,
+                                  prev_dir/(math.pi*2)])
 # =============================================================================
 #             Observing reward
 # =============================================================================
@@ -161,15 +180,18 @@ def start_simulation(GUI):
             elif over and not result:
                 r = -1
             elif not over:
-#                print(car.pos)
                 r = float(env.get_reward(car.pos)/18)
-#            r = np.expand_dims(r,axis = 0)
+                
             cumulative_r = cumulative_r + r
-            next_state = np.array([(car.pos[0]*2/GUI.track_img.size[0])-1,
-                              (car.pos[1]*2/GUI.track_img.size[1])-1,
-                              car.speed/30,
-                              car.dir/(math.pi*2)])
-#            TODO normalise the data
+            if GUI.sensor_mode.get()=="LIDAR":
+                next_state = np.hstack([env.get_sensor_data(car.pos, car.dir, LIDAR_RESOLUTION , LIDAR_MAX_RANGE)*2/LIDAR_MAX_RANGE-1,
+                                        car.speed/40])
+            else:
+                next_state = np.hstack([(car.pos[0]*2/GUI.track_img.size[0])-1,
+                                  (car.pos[1]*2/GUI.track_img.size[1])-1,
+                                  car.speed/30,
+                                  car.dir/(math.pi*2)])
+
             experience = [state.reshape(-1),a,r,next_state.reshape(-1),over]
             buff.add_item(experience)
             car_color = 'r' if over and not result else 'k'
@@ -220,9 +242,20 @@ def start_simulation(GUI):
             overs = np.asarray([e[4] for e in batch])
             y = np.asarray([e[1] for e in batch])
             
-#            TODO LIDAR
-            target_q_values = critic.target_model.predict([new_states[:,0:2],new_states[:,2:4],
-                                                           actor.target_model.predict([new_states[:,0:2],new_states[:,2:4]])])  
+            if GUI.sensor_mode.get()=="LIDAR":
+                states_1 = states[:,0:-1]
+                states_1 = np.expand_dims(states_1,axis=2)
+                states_2 = states[:,-1]
+                new_states_1 = new_states[:,0:-1]
+                new_states_1 = np.expand_dims(new_states_1,axis=2)
+                new_states_2 = new_states[:,-1]
+            else:
+                states_1 = states[:,0:2]
+                states_2 = states[:,2:4]
+                new_states_1 = new_states[:,0:2]
+                new_states_2 = new_states[:,2:4]
+            target_q_values = critic.target_model.predict([new_states_1,new_states_2,
+                                                           actor.target_model.predict([new_states_1,new_states_2])])  
            
             for k in range(len(batch)):
                 if overs[k]:
@@ -231,9 +264,9 @@ def start_simulation(GUI):
                     y[k] = rewards[k] + GAMMA*target_q_values[k]
                     
             #            TODO LIDAR
-            critic.model.train_on_batch([states[:,0:2],states[:,2:4],actions], y)
+            critic.model.train_on_batch([states_1,states_2,actions], y)
             #            TODO LIDAR
-            a_for_grad = actor.model.predict([states[:,0:2],states[:,2:4]])
+            a_for_grad = actor.model.predict([states_1,states_2])
             grads = critic.gradients(states, a_for_grad)
             actor.train(states, grads)
             actor.target_train()

@@ -164,13 +164,39 @@ class Environment:
             over = collision
         
         return over, not collision
-# =============================================================================
-#     Updates the picture on the simulator page
-# =============================================================================
-    def draw_track(self):
-        pass
 
-
+# =============================================================================
+#     Gets sensor data
+# =============================================================================
+    def get_sensor_data(self, pos, ref_dir, resolution, max_r):
+        track = deepcopy(self.track)
+        for obstacle in self.obstacles:
+            track[obstacle[1],obstacle[1],:] = 0
+        sensor_data = np.array([[0 for i in range(resolution+1)],
+                               [-math.pi/2+i*math.pi/resolution for i in range(resolution+1)],
+                               [0 for i in range(resolution+1)]])
+        sensor_data[1,:]=sensor_data[1,:]+ref_dir
+        points = np.array([np.sin(sensor_data[1,:]),-np.cos(sensor_data[1,:])])
+        r = 0
+        ready = pos[0] < 0 or pos[1] < 0 or \
+                pos[0] >= track.shape[1] or pos[1] >= track.shape[0] or \
+                np.any(track[np.round(pos[1]).astype(int),np.round(pos[0]).astype(int),:]!=np.array([255,255,255]),axis = -1)
+        while  not ready :
+                r = r+1
+                points_to_check = np.array(points*r+pos.reshape(-1,1))
+                points_to_check = np.round(points_to_check).astype(int)
+                sensor_data[2,:] =  (sensor_data[2,:]) + \
+                                    (points_to_check[0,:] < 0) + (points_to_check[1,:] < 0) + \
+                                    (points_to_check[0,:] >= track.shape[1]) + (points_to_check[1,:] >= track.shape[0]) + \
+                                    (np.any(track[list(map(lambda x : min(x,track.shape[0]-1),points_to_check[1,:])),
+                                                  list(map(lambda x : min(x,track.shape[1]-1),points_to_check[0,:])),
+                                                  :]!=np.array([255,255,255]),axis = -1))
+                sensor_data[0,:] = [sensor_data[0,i]+1 \
+                                    if sensor_data[2,i] == 0 \
+                                    else sensor_data[0,i] \
+                                    for i in range(len(sensor_data[0,:]))]
+                ready = np.all(sensor_data[2,:]) or r == max_r
+        return sensor_data[0,:]
 # =============================================================================
 #     Computes the reward based on the position of the car
 # =============================================================================
