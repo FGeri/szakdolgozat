@@ -36,13 +36,13 @@ def derivatives(t, y, arg):
     
 class Environment:
 # =============================================================================
-#     track
-#     obstacles
-#     time_step
-#     start_line #np array [[startpoint x,y], [endpoint x,y]  
-#     finish_line #np array [[startpoint x,y], [endpoint x,y] 
-#     gg_diag
-#     color_of_track
+#   track
+#   obstacles
+#   time_step
+#   start_line #np array [[startpoint x,y], [endpoint x,y]  
+#   finish_line #np array [[startpoint x,y], [endpoint x,y] 
+#   gg_diag
+#   color_of_track
 # =============================================================================
     
     def __init__(self,path_of_track,start_line,
@@ -53,7 +53,6 @@ class Environment:
         self.finish_line = np.array(finish_line)
         self.start_speed = 2
         self.start_dir = math.pi/2
-#        self.start_dir = 0
         self.start_position = np.array([round((start_line[0,0]+start_line[1,0])/2),
                                         round((start_line[0,1]+start_line[1,1])/2)])
         self.obstacles = set(obstacles)
@@ -68,7 +67,10 @@ class Environment:
             for y in range(self.track.shape[0]):
                 if np.array_equal(self.track[y, x, :], self.color_of_track):
                     self.track_indexes.append([x, y])
-        
+# =============================================================================
+#   Resets the environment
+#   random init : indicates whether the cars should be started from a random pos                 
+# =============================================================================
     def reset (self,random_init = False):
         self.prev_lateral_dist = 0
         self.prev_longit_dist = 0
@@ -83,22 +85,7 @@ class Environment:
     
     def load_track(self , path):
         self.track = scipy.misc.imread(path)
-    
-    def load_nn(self , path):
-        pass
-    
-    
-# =============================================================================
-#     Initialises the obstacles,stores them in a list with tupple elements
-#     Options: static/dynamic
-#              number of obstacles
-#              Size?
-#              
-# =============================================================================
-    def init_obstacles(self,options):
-        pass
-    
-    
+        
     def step(self,car,acc,steer_angle):
         y0, t0 = [car.pos[0],car.pos[1],car.speed,car.dir], 0
         dt = self.time_step
@@ -109,9 +96,9 @@ class Environment:
         car.pos = np.array([self.ode.y[0], self.ode.y[1]]).astype(float)
 
 # =============================================================================
-#     This function checks if the car has collided with an obstacle or is out 
-#     of the track
-#     Returns true if collided
+#   This function checks if the car has collided with an obstacle or is out 
+#   of the track
+#   Returns true if collided
 # =============================================================================
     def __detect_collision(self,car):
         collision = False
@@ -145,11 +132,11 @@ class Environment:
         return collision
     
 # =============================================================================
-#     Checks if a game is over by runnin out of the track or colliding 
-#     with an obstacles or reaching the finish
-#     Returns: 
-#       over:True if the lap is over
-#       collision: False if the car reached the finish
+#   Checks if a game is over by runnin out of the track or colliding 
+#   with an obstacles or reaching the finish
+#   Returns: 
+#   over:True if the lap is over
+#   collision: False if the car reached the finish
 # =============================================================================
     def is_over(self,car,prev_pos):
         collision = self.__detect_collision(car)
@@ -166,7 +153,7 @@ class Environment:
         return over, not collision
 
 # =============================================================================
-#     Gets sensor data
+#   Gets sensor data
 # =============================================================================
     def get_sensor_data(self, pos, ref_dir, resolution, max_r):
         track = deepcopy(self.track)
@@ -196,9 +183,14 @@ class Environment:
                                     else sensor_data[0,i] \
                                     for i in range(len(sensor_data[0,:]))]
                 ready = np.all(sensor_data[2,:]) or r == max_r
-        return sensor_data[0,:]
+        points_to_check = points * (sensor_data[0,-1]+1)
+        points_to_check = np.round(points_to_check).astype(int)
+        orientation = sensor_data[0,-1] == max_r or \
+                      not np.any(track[points_to_check[1],points_to_check[0],:]!=np.array([0,0,255]),axis = -1)
+        return np.hstack([sensor_data[0,:],int(orientation)])
+    
 # =============================================================================
-#     Computes the reward based on the position of the car
+#   Computes the reward based on the position of the car
 # =============================================================================
     def get_reward(self, pos_original):
         
@@ -249,6 +241,9 @@ class Environment:
             self.prev_lateral_dist = lateral_dist
             return reward
         
+# =============================================================================
+#   Chaches the dists in a dict  
+# =============================================================================
     def __get_dists(self):
         """
         :return: a dictionary consisting (inner track point, distance) pairs

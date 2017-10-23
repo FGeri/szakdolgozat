@@ -28,24 +28,36 @@ from copy import deepcopy
 
 def start_simulation(GUI):
     np.random.seed(123)
+# =============================================================================
+#   Car params  
+# =============================================================================
     LIDAR_RESOLUTION = 30
     LIDAR_MAX_RANGE = 80
     ACC_SCALE = 10.
     STEER_ANGLE_SCALE = math.pi/2
-    
 # =============================================================================
-#     Hyper parameters
+#     Track params
+# =============================================================================
+    MAX_SIMULATION_LAPS = 100000
+    MAX_STEPS_PER_LAP = 1000
+    obstacles = []
+    if GUI.obstacles:
+        obstacles = [(0,10),(0,1)]
+# =============================================================================
+#   Hyper parameters (NN)
 # =============================================================================
     BUFFER_SIZE = 100000
-    BATCH_SIZE = 32
-    GAMMA = 0.99
+    BATCH_SIZE = 64
+    GAMMA = 0.95
     TAU = 0.001     #Target Network HyperParameters
-    LRA = 0.0001    #Learning rate for Actor
-    LRC = 0.001     #Learning rate for Critic    
+    LRA = 0.001    #Learning rate for Actor
+    LRC = 0.01     #Learning rate for Critic    
+    EXPLORE = 100000.
+    epsilon = 1
     
     action_dim = 2  #Steering/Acceleration
     if GUI.sensor_mode.get()=="LIDAR":
-        state_dim = LIDAR_RESOLUTION+2
+        state_dim = LIDAR_RESOLUTION+3
     else:
         state_dim = 4  
     
@@ -66,24 +78,14 @@ def start_simulation(GUI):
         except:
             print("Cannot find the weight")
     
-    EXPLORE = 100000.
-#    episode_count = 2000
-#    max_steps = 100000
-    
-    epsilon = 1
-    obstacles = []
-    
-    if GUI.obstacles:
-        obstacles = [(0,10),(0,1)]
-    max_simulation_laps = 100000
     env = Environment(GUI.track_path.get(),np.array([[252,30],[252,80]]),
                 np.array([[251,30],[251,80]]),obstacles,np.array([255,255,255]),time_step=1)
     car = Car(GUI.width.get(),GUI.length.get(),GUI.gg_path.get(),env.start_position,env.start_speed,env.start_dir)
 
     theta = car.dir
     rot_matrix = np.array([[math.cos(theta),-math.sin(theta)],[math.sin(theta),math.cos(theta)]],dtype=float)
-    # =============================================================================
-#             Draw the track and car
+# =============================================================================
+#   Draw the track and car
 # =============================================================================
     chassis = np.array([[0,car.width,car.width,0],[0,0,car.length,car.length]],dtype=float)
     chassis = rot_matrix.dot(chassis)
@@ -113,31 +115,34 @@ def start_simulation(GUI):
     
     
     
-    for i in range(max_simulation_laps):
+    for i in range(MAX_SIMULATION_LAPS):
 # =============================================================================
 #         TODO Random5ly initialise (switchable) our starting 
 # =============================================================================
         env.reset(False)
         car.reset(env.start_position,env.start_speed,env.start_dir)
         over = False
-#        tmp=1
         cumulative_r = 0
         
         if GUI.sensor_mode.get()=="LIDAR":
             state = np.hstack([env.get_sensor_data(car.pos, car.dir, LIDAR_RESOLUTION , LIDAR_MAX_RANGE)*2/LIDAR_MAX_RANGE-1,
-                               car.speed/40])
+                               car.speed/30])
         else:
             state = np.hstack([(car.pos[0]*2/GUI.track_img.size[0])-1,
                                   (car.pos[1]*2/GUI.track_img.size[1])-1,
                                   car.speed/30,
                                   car.dir/(math.pi*2)])
-        while not over:
-# =============================================================================
-#           TODO  We get the our action here (acc, steer_angle)
-# =============================================================================
+        step = 0
+        while not over and step < MAX_STEPS_PER_LAP:
+
+            step += 1
             epsilon -= 1.0 / EXPLORE
             a = np.zeros([1,action_dim])
             noise = np.zeros([1,action_dim])
+            
+# =============================================================================
+#           We get the our actions here (acc, steer_angle)
+# =============================================================================            
             noise[0][0] = max(epsilon, 0) * np.random.normal(0,0.5)
             noise[0][1] = max(epsilon, 0) * np.random.normal(0,0.5)
             if GUI.sensor_mode.get()=="LIDAR":
@@ -150,9 +155,6 @@ def start_simulation(GUI):
             a_original = actor.model.predict([state_1,state_2])
             a = a_original[0] + noise[0]
             acc, steer_angle = a*np.array([ACC_SCALE,STEER_ANGLE_SCALE])
-            #            acc = np.random.uniform(-5,5)
-#            steer_angle = np.random.uniform(-math.pi/2,math.pi/2)
-#            steer_angle = math.pi/(4*8)
             prev_pos = deepcopy(car.pos)
             prev_speed = deepcopy(car.speed)
             prev_dir = deepcopy(car.dir)
@@ -160,13 +162,12 @@ def start_simulation(GUI):
             over,result = env.is_over(car,prev_pos)
             
 # =============================================================================
-#             TODO Store our data in the pandas database.(s,a,r,s')
-#            (prev_pos,prev_dir,prev_speed),(acc,steer_angle),r,(car.pos,car.dir,car.speed)
-#            OR local info?
+#(prev_pos,prev_dir,prev_speed),(acc,steer_angle),r,(car.pos,car.dir,car.speed) OR
+#(prev sensor information, prev orientation flag,prev_speed),(acc,steer_angle),r,(prev sensor information, prev orientation flag,prev_speed)
 # =============================================================================
             if GUI.sensor_mode.get()=="LIDAR":
                 state = np.hstack([env.get_sensor_data(prev_pos, prev_dir, LIDAR_RESOLUTION , LIDAR_MAX_RANGE)*2/LIDAR_MAX_RANGE-1,
-                                   prev_speed/40])
+                                   prev_speed/30])
             else:
                 state = np.hstack([(prev_pos[0]*2/GUI.track_img.size[0])-1,
                                   (prev_pos[1]*2/GUI.track_img.size[1])-1,
@@ -180,18 +181,20 @@ def start_simulation(GUI):
             elif over and not result:
                 r = -1
             elif not over:
-                r = float(env.get_reward(car.pos)/18)
+                r = float(env.get_reward(car.pos)/18)-0.1
                 
             cumulative_r = cumulative_r + r
             if GUI.sensor_mode.get()=="LIDAR":
                 next_state = np.hstack([env.get_sensor_data(car.pos, car.dir, LIDAR_RESOLUTION , LIDAR_MAX_RANGE)*2/LIDAR_MAX_RANGE-1,
-                                        car.speed/40])
+                                        car.speed/30])
             else:
                 next_state = np.hstack([(car.pos[0]*2/GUI.track_img.size[0])-1,
                                   (car.pos[1]*2/GUI.track_img.size[1])-1,
                                   car.speed/30,
                                   car.dir/(math.pi*2)])
-
+# =============================================================================
+#           Store experience in repaly memory
+# =============================================================================
             experience = [state.reshape(-1),a,r,next_state.reshape(-1),over]
             buff.add_item(experience)
             car_color = 'r' if over and not result else 'k'
@@ -231,8 +234,7 @@ def start_simulation(GUI):
             GUI.update_idletasks()
             GUI.update()
 # =============================================================================
-#   TODO We tran the network with the train data. (R only first then R+max(Q')).
-#   Then at validation we stop when the error is the lowest
+#           Train the networks with a mini batch.
 # =============================================================================
             batch = buff.get_batch(BATCH_SIZE)
             states = np.asarray(np.atleast_2d([e[0] for e in batch]))
@@ -275,7 +277,7 @@ def start_simulation(GUI):
             
         print("Episode "+str(i)+"\tCumulative reward:"+str(cumulative_r))
 # =============================================================================
-#   TODO With the trained network we test our algorythm
+#   Save the weights
 # =============================================================================
     if (GUI.save_nn.get()):
         print("Now we save model")
@@ -296,12 +298,6 @@ def start_simulation(GUI):
 # =============================================================================
 
 gui = GUI(handler=start_simulation)
-# =============================================================================
-# while True:
-#     gui.update_idletasks()
-#     gui.update()
-#     time.sleep(0.1)
-# =============================================================================
 gui.mainloop()
 
 
