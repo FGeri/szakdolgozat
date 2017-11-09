@@ -28,10 +28,11 @@ from skimage.morphology import disk
 
 def derivatives(t, y, arg):
     dy = [0,0,0,0]
-    dy[0] = y[2]*math.sin(y[3])
-    dy[1] = -y[2]*math.cos(y[3])
+    beta = math.atan(0.5*math.tan(arg[1]))
+    dy[0] = y[2]*math.sin(y[3]+beta)
+    dy[1] = -y[2]*math.cos(y[3]+beta)
     dy[2] = arg[0]
-    dy[3] = -y[2]/arg[2]*math.tan(arg[1])
+    dy[3] = 2*y[2]/arg[2]*math.sin(beta)
     return dy
     
 class Environment:
@@ -48,7 +49,7 @@ class Environment:
     def __init__(self,path_of_track,start_line,
                  finish_line,obstacles,color_of_track,time_step=1):
         random.seed(123)
-        self.track=scipy.misc.imread(path_of_track)        
+        self.track=scipy.misc.imread(path_of_track)[:,:,0:3]      
         self.start_line = np.array(start_line)
         self.finish_line = np.array(finish_line)
         self.start_speed = 2
@@ -59,8 +60,6 @@ class Environment:
         self.time_step = copy(time_step)
         self.color_of_track = np.array(color_of_track)
         self.ode = ode(derivatives).set_integrator('dopri5')
-        self.prev_lateral_dist = 0
-        self.prev_longit_dist = 0
         self.dists = self.__get_dists()
         self.track_indexes = []
         for x in range(self.track.shape[1]):
@@ -72,13 +71,18 @@ class Environment:
 #   random init : indicates whether the cars should be started from a random pos                 
 # =============================================================================
     def reset (self,random_init = False):
-        self.prev_lateral_dist = 0
-        self.prev_longit_dist = 0
+        #TODO make it universal
+        self.lateral_dist = 18.5
+        self.longit_dist = -1
+        self.prev_lateral_dist = 18.5
+        self.prev_longit_dist = -2
+        self.track_width = 37
         if random_init:
             self.start_speed = np.random.uniform(-30,30)
             self.start_dir = np.random.uniform(0,math.pi*2)
             self.start_position = np.array(random.choice(self.track_indexes))
-            self.get_reward(self.start_position)
+        self.get_reward(self.start_position)
+        self.get_reward(self.start_position)
         
     def load_gg(self , path):
         self.gg_diag = scipy.misc.imread(path)
@@ -107,8 +111,8 @@ class Environment:
         chassis = np.ones([int(car.length),int(car.width)])
         indexes_tmp = np.where(chassis==1)
         indexes = np.array(indexes_tmp,dtype=float)
-        indexes[0,:] -= math.floor((car.length-1)/2)
-        indexes[1,:] -= math.floor((car.width-1)/2)
+        indexes[0,:] -= (car.length)/2
+        indexes[1,:] -= (car.width)/2
         indexes=indexes[::-1,:]
         rotated_indexes = rot_matrix.dot(indexes)
         rotated_indexes[0,:] += car.pos[0]
@@ -155,7 +159,7 @@ class Environment:
 # =============================================================================
 #   Gets sensor data
 # =============================================================================
-    def get_sensor_data(self, pos, ref_dir, resolution, max_r):
+    def get_sensor_data(self, pos, ref_dir,speed, resolution, max_r):
         track = deepcopy(self.track)
         for obstacle in self.obstacles:
             track[obstacle[1],obstacle[1],:] = 0
@@ -167,7 +171,9 @@ class Environment:
         r = 0
         ready = pos[0] < 0 or pos[1] < 0 or \
                 pos[0] >= track.shape[1] or pos[1] >= track.shape[0] or \
-                np.any(track[np.round(pos[1]).astype(int),np.round(pos[0]).astype(int),:]!=np.array([255,255,255]),axis = -1)
+                np.any(track[min(np.round(pos[1]).astype(int),track.shape[0]-1),
+                             min(np.round(pos[0]).astype(int),track.shape[1]-1),
+                             :]!=np.array([255,255,255]),axis = -1)
         while  not ready :
                 r = r+1
                 points_to_check = np.array(points*r+pos.reshape(-1,1))
@@ -175,18 +181,16 @@ class Environment:
                 sensor_data[2,:] =  (sensor_data[2,:]) + \
                                     (points_to_check[0,:] < 0) + (points_to_check[1,:] < 0) + \
                                     (points_to_check[0,:] >= track.shape[1]) + (points_to_check[1,:] >= track.shape[0]) + \
-                                    (np.any(track[list(map(lambda x : min(x,track.shape[0]-1),points_to_check[1,:])),
-                                                  list(map(lambda x : min(x,track.shape[1]-1),points_to_check[0,:])),
+                                    (np.any(track[np.clip(points_to_check[1,:],0,track.shape[0]-1),
+                                                  np.clip(points_to_check[0,:],0,track.shape[1]-1),
                                                   :]!=np.array([255,255,255]),axis = -1))
-                sensor_data[0,:] = [sensor_data[0,i]+1 \
-                                    if sensor_data[2,i] == 0 \
-                                    else sensor_data[0,i] \
-                                    for i in range(len(sensor_data[0,:]))]
+                sensor_data[0,:] = sensor_data[0,:] + np.asarray(sensor_data[2,:] == 0).astype(int)
                 ready = np.all(sensor_data[2,:]) or r == max_r
-        points_to_check = points * (sensor_data[0,-1]+1)
+        points_to_check = points[:,-1] * (sensor_data[0,-1]+1)+pos
         points_to_check = np.round(points_to_check).astype(int)
         orientation = sensor_data[0,-1] == max_r or \
-                      not np.any(track[points_to_check[1],points_to_check[0],:]!=np.array([0,0,255]),axis = -1)
+                      not np.any(track[min(points_to_check[1],track.shape[0]-1),min(points_to_check[0],track.shape[1]-1),:]!=np.array([0,0,255]),axis = -1)
+        
         return np.hstack([sensor_data[0,:],int(orientation)])
     
 # =============================================================================
@@ -235,10 +239,18 @@ class Environment:
             pos = np.array(pos + offset)
             track_width= inner_dist+outer_dist
             longit_dist = self.dists[tuple(pos)]
-            lateral_dist = abs(inner_dist/track_width-0.5)
-            reward = (longit_dist - self.prev_longit_dist)-(lateral_dist-self.prev_lateral_dist)*10
-            self.prev_longit_dist = longit_dist
-            self.prev_lateral_dist = lateral_dist
+            lateral_dist = inner_dist
+#            print("##########################################################")
+#            print("Pos: "+str(pos_original))
+#            print("Longit reward: "+str((longit_dist - self.prev_longit_dist)))
+#            print("Lateral reward: "+str(-(lateral_dist-self.prev_lateral_dist)*25))
+            reward = (longit_dist - self.longit_dist) \
+                        -abs(abs(lateral_dist/track_width-0.5)-abs(self.lateral_dist/self.track_width-0.5))*60
+            self.prev_longit_dist = deepcopy(self.longit_dist)
+            self.prev_lateral_dist = deepcopy(self.lateral_dist)
+            self.longit_dist = deepcopy(longit_dist)
+            self.lateral_dist = deepcopy(lateral_dist)
+            self.track_width = track_width
             return reward
         
 # =============================================================================

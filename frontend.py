@@ -30,6 +30,8 @@ class GUI(tk.Tk):
         tk.Tk.__init__(self, *args, **tmp_kwargs)
         self.protocol("WM_DELETE_WINDOW", self.close_handler)
         self.start_simulation_handler=kwargs['handler']
+        self.debug_active = tk.BooleanVar()
+        self.debug_active.set(False)
 # =============================================================================
 #        Variable declarations
 # =============================================================================
@@ -41,10 +43,10 @@ class GUI(tk.Tk):
         self.gg_path.set("Default_GG.bmp")
      
         self.length = tk.DoubleVar()
-        self.length.set(12.0)
+        self.length.set(8.0)
         
         self.width = tk.DoubleVar()
-        self.width.set(6.0)
+        self.width.set(4.0)
         
         self.map_track = tk.IntVar()
         self.map_track.set(0)
@@ -58,10 +60,10 @@ class GUI(tk.Tk):
         self.track_path.set("track_tmp.png")
         
         self.time_step = tk.DoubleVar()
-        self.time_step.set(1.0)
+        self.time_step.set(0.25)
         
         self.draw_track = tk.BooleanVar()
-        self.draw_track.set(True)
+        self.draw_track.set(False)
         
         self.obstacles = tk.BooleanVar()
         self.obstacles.set(False)
@@ -127,6 +129,8 @@ class GUI(tk.Tk):
         ax = self.track_figure_handle.gca()
         ax.set_axis_off()
         self.track_canvas_handle.draw()
+    def enter_debug_mode(self):
+        self.debug_active.set(True)
 
 class SettingsPage(tk.Frame):
 
@@ -370,8 +374,8 @@ class SimulatorPage(tk.Frame):
         btn1=ttk.Button(right_container, text="Settings",
                             command=lambda: controller.show_frame(SettingsPage))
         btn1.grid(row = 1)
-        btn2=ttk.Button(right_container, text="Stop",
-                            command=lambda: print ("Stop"))
+        btn2=ttk.Button(right_container, text="DEBUG",
+                            command=lambda: controller.enter_debug_mode())
         btn2.grid(row = 2)
         btn3=ttk.Button(right_container, text="Start",
                             command=lambda: print ("Start"))

@@ -15,8 +15,12 @@ class Car:
         self.pos=np.array(start_pos)
         self.speed=0
         self.dir=start_dir
+        self.prev_acc = 0
+        self.prev_steering = 0
         #        TODO gg_diag-ot beolvasni és elcachelni
     def reset (self,start_pos,speed,start_dir):
         self.pos=np.array(start_pos)
         self.speed=speed
         self.dir=start_dir
+        self.prev_acc = 0
+        self.prev_steering = 0
