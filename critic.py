@@ -54,12 +54,16 @@ class Critic:
 
     def target_train(self):
         self.target_model.set_weights(self.model.get_weights())
-
+    
+    def _huber_loss(self, target, prediction):
+        error = prediction - target
+        return K.mean(K.sqrt(1+K.square(error))-1, axis=-1)
+    
     def create_network(self, state_size,action_dim,output_size):
         if self.mode =="LIDAR":
             print("Creating Critic NN - LIDAR mode")
-            inp_1 = Input(shape=[state_size-3,1],name='state_1')
-            inp_2 = Input(shape=[3],name='state_2')
+            inp_1 = Input(shape=[state_size-2,1],name='state_1')
+            inp_2 = Input(shape=[2],name='state_2')
 #            Branch 1
 #            conv_10 = Conv1D(filters=32,kernel_size=3,strides=1,activation="relu")(inp_1)
 #            conv_11 = Conv1D(filters=16,kernel_size=3,strides=1,activation="relu")(conv_10)
@@ -74,15 +78,15 @@ class Critic:
 #            dense_20 = Dense(128)(inp_2)
 #            Branch 1+2
             merge_40 = Concatenate()([flat_19,inp_2])
-            dense_41 = Dense(64)(merge_40)
+            dense_41 = Dense(64,kernel_regularizer=keras.regularizers.l1_l2(0.01))(merge_40)
 #            dense_41 = BatchNormalization()(dense_41)
             dense_41 = Activation('relu')(dense_41)
-            dense_42 = Dense(32)(dense_41)
+            dense_42 = Dense(32,kernel_regularizer=keras.regularizers.l1_l2(0.01))(dense_41)
 #            dense_42 = BatchNormalization()(dense_42)
             dense_42 = Activation('relu')(dense_42)
-            dense_43 = Dense(32, activation='relu')(dense_42)
+            dense_43 = Dense(32,kernel_regularizer=keras.regularizers.l1_l2(0.01), activation='relu')(dense_42)
 #            dense_44 = Dense(30, activation='relu')(dense_43)
-            V = Dense(output_size,activation='linear')(dense_43) 
+            V = Dense(output_size,kernel_regularizer=keras.regularizers.l1_l2(0.01),activation='linear')(dense_43) 
             model = Model(inputs=[inp_1,inp_2],outputs=V)
             optimizer = Adam(lr=self.LR)
 #            optimizer = RMSprop(lr=self.LR, epsilon=0.01, decay=0.95)

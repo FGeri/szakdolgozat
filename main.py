@@ -38,16 +38,18 @@ def start_simulation(GUI):
 # =============================================================================
 #   Car params  
 # =============================================================================
-    LIDAR_RESOLUTION = 20
-    LIDAR_MAX_RANGE = 100
-    ACC_RESOLUTION = 4
-    ACC_SCALE = 8.
-    STEER_ANGLE_SCALE = math.pi/4
-    STEER_ANGLE_RESOLUTION = 10
+    LIDAR_RESOLUTION = GUI.lidar_res.get()
+    LIDAR_MAX_RANGE = GUI.lidar_range.get()
+    
+    ACC_SCALE = GUI.max_acc.get()
+    ACC_RESOLUTION = GUI.acc_res.get()
+    
+    STEER_ANGLE_SCALE = math.radians(GUI.max_steering.get())
+    STEER_ANGLE_RESOLUTION = GUI.steering_res.get()
 # =============================================================================
 #     Track params
 # =============================================================================
-    MAX_SIMULATION_LAPS = 70000
+    MAX_SIMULATION_LAPS = GUI.episodes.get()
     MAX_STEPS_PER_LAP = 200
     obstacles = []
     if GUI.obstacles:
@@ -55,15 +57,15 @@ def start_simulation(GUI):
 # =============================================================================
 #   Hyper parameters (NN)
 # =============================================================================
-    BUFFER_SIZE = 200000
-    BATCH_SIZE = 128
-    GAMMA = 0.95
+    BUFFER_SIZE = GUI.memory_size.get()
+    BATCH_SIZE = GUI.batch_size.get()
+    GAMMA = GUI.gamma.get()
     TAU = 0.002     #Target Network HyperParameters
-    TARGET_UPDATE_FREQ = 400
-    LRA = 0.0001    #Learning rate for Actor
-    LRC = 0.0001     #Learning rate for Critic    
-    EXPLORE = 4000.
-    epsilon = 1
+    TARGET_UPDATE_FREQ = 10
+    TARGET_UPDATE_FREQ_EXP = 1.2
+    LRA = 0.001    #Learning rate for Actor
+    LRC = GUI.learning_rate.get()    
+    EXPLORE = GUI.exploration_decay.get() 
     
     action_dim = 2  #Steering/Acceleration
     if GUI.sensor_mode.get()=="LIDAR":
@@ -80,66 +82,12 @@ def start_simulation(GUI):
                               for x in range(ACC_RESOLUTION+1) \
                               for y in range(STEER_ANGLE_RESOLUTION+1)])
     critic = Critic(sess,GUI.sensor_mode.get(), state_dim, action_dim, BATCH_SIZE, TAU, LRC,(ACC_RESOLUTION+1)*(STEER_ANGLE_RESOLUTION+1))
+    critic.target_train()
     buff = Buffer(BUFFER_SIZE)
-# =============================================================================
-#     Pilot
-# =============================================================================
-#    print("Reading in experiences")
-#    experience =  pd.read_json('data_unique.json')
-#    experience['s'] = experience['s'].apply(lambda x: np.array(x))
-#    experience["s'"] = experience["s'"].apply(lambda x: np.array(x))
-#    experience['a'] = experience['a'].apply(lambda x: np.array(x))
-#    experience['over'] = experience['over'].apply(lambda x: bool(x))
-#    experience['id'] = experience['over'].apply(lambda x: str(x))
-#    experience=experience[['s','a','r',"s'",'over','id']]
-#    buff.add_item(experience)
-##
-#    
-#    critic.TAU = 0.01
-#    for i in range (2000):
-#        batch = buff.get_batch(2000)
-#        states = np.asarray(np.atleast_2d([e[0] for e in batch]))
-#        actions = np.asarray(np.atleast_2d([e[1] for e in batch]))
-#        rewards = np.asarray([e[2] for e in batch])
-#        new_states = np.asarray(np.atleast_2d([e[3] for e in batch]))
-#        overs = np.asarray([e[4] for e in batch])
-#                    
-#        if GUI.sensor_mode.get()=="LIDAR":
-#            states_1 = states[:,0:-5]
-#            states_1 = np.expand_dims(states_1,axis=2)
-#            states_2 = states[:,-5:]
-#            new_states_1 = new_states[:,0:-5]
-#            new_states_1 = np.expand_dims(new_states_1,axis=2)
-#            new_states_2 = new_states[:,-5:]
-#        else:
-#            states_1 = states[:,0:2]
-#            states_2 = states[:,2:4]
-#            new_states_1 = new_states[:,0:2]
-#            new_states_2 = new_states[:,2:4]
-#    #                target_q_values = critic.target_model.predict([new_states_1,new_states_2,
-#    #                                                                   actor.target_model.predict([new_states_1,new_states_2])])  
-#        y = critic.model.predict_on_batch([states_1,states_2])
-#        q_preds = critic.model.predict_on_batch([new_states_1,new_states_2])
-#        next_a_indeces = np.argmax(q_preds,axis=1)
-#        maxQs = critic.target_model.predict_on_batch([new_states_1,new_states_2])
-#        maxQs = maxQs[range(len(batch)),next_a_indeces]
-#        targets = rewards + GAMMA*maxQs*(1-overs)
-#        a_indeces = []
-#        for row in actions:
-#            a_indeces.append(int(np.where(np.all(sampled_actions==row,axis=1))[0]))
-#        y[range(len(batch)),a_indeces] = targets      
-#        critic.model.fit([states_1,states_2], y,batch_size=32)
-#        print("Iteration: "+str(i))
-#        critic.target_train()
-#    critic.model.save_weights("criticmodel.h5", overwrite=True)
-#    critic.TAU = TAU
-# =============================================================================
-#     Pilot_end
-# =============================================================================
-    if GUI.load_nn.get() or True:
+    if GUI.load_nn.get():
         try:
 #            actor.model.load_weights("actormodel.h5")
-#            critic.model.load_weights("criticmodel.h5")
+            critic.model.load_weights(GUI.nn_path.get())
 #            actor.target_model.load_weights("actormodel.h5")
 #            critic.target_model.load_weights("criticmodel.h5")
             print("Weight load successfully")
@@ -148,7 +96,7 @@ def start_simulation(GUI):
     
     env = Environment(GUI.track_path.get(),np.array([[252,23],[252,82]]),
                 np.array([[251,30],[251,80]]),obstacles,np.array([255,255,255]),time_step=1)
-    car = Car(GUI.width.get(),GUI.length.get(),GUI.gg_path.get(),env.start_position,env.start_speed,env.start_dir)
+    car = Car(GUI.width.get(),GUI.length.get(),env.start_position,env.start_speed,env.start_dir)
     ou = OU()
     theta = car.dir
     rot_matrix = np.array([[math.cos(theta),-math.sin(theta)],[math.sin(theta),math.cos(theta)]],dtype=float)
@@ -165,17 +113,17 @@ def start_simulation(GUI):
     chassis= np.round(chassis)
     chassis = chassis.astype(int)
     GUI.track_figure_handle.clear()
-    track = GUI.track_figure_handle.add_subplot(111)
-    plt.imshow(GUI.track_img,aspect='auto')
-    plt.plot([env.start_line[0,0],env.start_line[1,0]], [env.start_line[0,1],
+    track_view = GUI.track_figure_handle.add_axes([0,0,1,1])
+    track_view.imshow(GUI.track_img,aspect='auto')
+    track_view.plot([env.start_line[0,0],env.start_line[1,0]], [env.start_line[0,1],
               env.start_line[1,1]], color='g', linestyle='-', linewidth=1)
-    plt.plot([chassis[0,0],chassis[0,1]], [chassis[1,0],chassis[1,1]],
+    track_view.plot([chassis[0,0],chassis[0,1]], [chassis[1,0],chassis[1,1]],
               color=car_color, linestyle='-', linewidth=2)
-    plt.plot([chassis[0,1],chassis[0,2]], [chassis[1,1],chassis[1,2]],
+    track_view.plot([chassis[0,1],chassis[0,2]], [chassis[1,1],chassis[1,2]],
               color=car_color, linestyle='-', linewidth=2)
-    plt.plot([chassis[0,2],chassis[0,3]], [chassis[1,2],chassis[1,3]],
+    track_view.plot([chassis[0,2],chassis[0,3]], [chassis[1,2],chassis[1,3]],
               color=car_color, linestyle='-', linewidth=2)
-    plt.plot([chassis[0,3],chassis[0,0]], [chassis[1,3],chassis[1,0]],
+    track_view.plot([chassis[0,3],chassis[0,0]], [chassis[1,3],chassis[1,0]],
               color=car_color, linestyle='-', linewidth=2)
     if GUI.obstacles:
               for obstacle in env.obstacles:
@@ -184,19 +132,31 @@ def start_simulation(GUI):
     GUI.update_idletasks()
     GUI.update()
     
-    log = []
-    exploration = np.ones(MAX_STEPS_PER_LAP)
+    log = [-20]
+    exploration = np.ones(MAX_STEPS_PER_LAP)*3
     start_time = time.time()
     total_steps = 0
+    best_reward = -100
+    best_test_index = 0
     for i in range(MAX_SIMULATION_LAPS):
 
         env.reset(False)
         car.reset(env.start_position,env.start_speed,env.start_dir)
         over = False
         cumulative_r = 0
+        experience_batch = pd.DataFrame([[np.array([]),np.array([]),0.,np.array([]),False,"",0.]],columns=['s', 'a', 'r', "s'", 'over','id','p'])
+        experience_batch = experience_batch.drop(experience_batch.index[0])
+        
+        if (int(i/100) > 0 and i % 100 == 0) or GUI.test_flag:
+            train = False
+            GUI.test_flag = False
+        else:
+            train = GUI.enable_training.get()
 # =============================================================================
 #         Draw the track
 # =============================================================================
+        GUI.progress.set(int(i/MAX_SIMULATION_LAPS*100))
+        GUI.progress_label.set(str(int(i/MAX_SIMULATION_LAPS*100))+"%")
         if GUI.draw_track.get():
             car_color = 'k'
             theta = car.dir
@@ -210,17 +170,17 @@ def start_simulation(GUI):
             chassis= np.round(chassis)
             chassis = chassis.astype(int)
             GUI.track_figure_handle.clear()
-            track = GUI.track_figure_handle.add_subplot(111)
-            plt.imshow(GUI.track_img,aspect='auto')
-            plt.plot([env.start_line[0,0],env.start_line[1,0]], [env.start_line[0,1],
+            track_view = GUI.track_figure_handle.add_axes([0,0,1,1])
+            track_view.imshow(GUI.track_img,aspect='auto')
+            track_view.plot([env.start_line[0,0],env.start_line[1,0]], [env.start_line[0,1],
                       env.start_line[1,1]], color='g', linestyle='-', linewidth=1)
-            plt.plot([chassis[0,0],chassis[0,1]], [chassis[1,0],chassis[1,1]],
+            track_view.plot([chassis[0,0],chassis[0,1]], [chassis[1,0],chassis[1,1]],
                      color=car_color, linestyle='-', linewidth=2)
-            plt.plot([chassis[0,1],chassis[0,2]], [chassis[1,1],chassis[1,2]],
+            track_view.plot([chassis[0,1],chassis[0,2]], [chassis[1,1],chassis[1,2]],
                      color=car_color, linestyle='-', linewidth=2)
-            plt.plot([chassis[0,2],chassis[0,3]], [chassis[1,2],chassis[1,3]],
+            track_view.plot([chassis[0,2],chassis[0,3]], [chassis[1,2],chassis[1,3]],
                      color=car_color, linestyle='-', linewidth=2)
-            plt.plot([chassis[0,3],chassis[0,0]], [chassis[1,3],chassis[1,0]],
+            track_view.plot([chassis[0,3],chassis[0,0]], [chassis[1,3],chassis[1,0]],
                      color=car_color, linestyle='-', linewidth=2)
             if GUI.obstacles:
                 for obstacle in env.obstacles:
@@ -252,7 +212,8 @@ def start_simulation(GUI):
         while not over and step < MAX_STEPS_PER_LAP-1:
             step += 1
             total_steps +=1
-            exploration[step]  -= 1.0 / EXPLORE
+            if  (step == 0 or exploration[step-1]<=2.5) and buff.num_items > 2000:
+                exploration[step]  = exploration[step] - 1/EXPLORE 
 #            epsilon = 0 
             a = np.zeros([1,action_dim])
             noise = np.zeros([1,action_dim])
@@ -262,10 +223,10 @@ def start_simulation(GUI):
 # =============================================================================            
             
             if GUI.sensor_mode.get()=="LIDAR":
-                state_1 = np.atleast_2d(state[0:-3])
+                state_1 = np.atleast_2d(state[0:-2])
                 state_1 = np.expand_dims(state_1,axis=2)
                 
-                state_2 = np.atleast_2d(state[-3:])
+                state_2 = np.atleast_2d(state[-2:])
             else:
                 state_1 = np.atleast_2d(state[0:2])
                 state_2 = np.atleast_2d(state[2:4])
@@ -273,7 +234,7 @@ def start_simulation(GUI):
             
             q_preds = critic.model.predict_on_batch([state_1,state_2])
 #            a_index = np.argmax(q_preds,axis=0)
-            p = softmax(q_preds.reshape(-1)/max(exploration[step]+1,0.05))
+            p = softmax(q_preds.reshape(-1)/(max(exploration[step]*train,0.0001)))
             a_index = np.random.choice(range((ACC_RESOLUTION+1)*(STEER_ANGLE_RESOLUTION+1)),1,p=p)
             a_original = sampled_actions[a_index,:]
             
@@ -298,6 +259,7 @@ def start_simulation(GUI):
                 print("###########ENTER DEBUG MODE##############")
                 print("BUFFER: ")
                 print(buff.buffer.describe())
+                print(buff.buffer.tail(30))
                 print("EXPLORATION: ")
                 print(exploration)
                 print("Q prediction: ")
@@ -369,9 +331,10 @@ def start_simulation(GUI):
                 if step > 0:
                     r_trace = np.asarray([GAMMA**(j+1) for j in range(step)])*r
                     r_trace = r_trace[-1::-1]
-                    buff.buffer.loc[buff.num_items-step:buff.num_items-1,'r'] \
-                        = buff.buffer.loc[buff.num_items-step:buff.num_items-1,'r']+r_trace
-                buff.add_item(experience)
+                    experience_batch.loc[:,'r'] = np.clip(experience_batch.loc[:,'r']+r_trace,-10*GAMMA,100)
+                    experience_batch = pd.concat([experience_batch,experience],ignore_index=True)
+                else:
+                    experience_batch = experience
             car_color = 'r' if over and not result else 'k'
 # =============================================================================
 #             Draw the track and car
@@ -390,17 +353,17 @@ def start_simulation(GUI):
                 chassis= np.round(chassis)
                 chassis = chassis.astype(int)
                 GUI.track_figure_handle.clear()
-                track = GUI.track_figure_handle.add_subplot(111)
-                plt.imshow(GUI.track_img,aspect='auto')
-                plt.plot([env.start_line[0,0],env.start_line[1,0]], [env.start_line[0,1],
+                track_view = GUI.track_figure_handle.add_axes([0,0,1,1])
+                track_view.imshow(GUI.track_img,aspect='auto')
+                track_view.plot([env.start_line[0,0],env.start_line[1,0]], [env.start_line[0,1],
                           env.start_line[1,1]], color='g', linestyle='-', linewidth=1)
-                plt.plot([chassis[0,0],chassis[0,1]], [chassis[1,0],chassis[1,1]],
+                track_view.plot([chassis[0,0],chassis[0,1]], [chassis[1,0],chassis[1,1]],
                          color=car_color, linestyle='-', linewidth=2)
-                plt.plot([chassis[0,1],chassis[0,2]], [chassis[1,1],chassis[1,2]],
+                track_view.plot([chassis[0,1],chassis[0,2]], [chassis[1,1],chassis[1,2]],
                          color=car_color, linestyle='-', linewidth=2)
-                plt.plot([chassis[0,2],chassis[0,3]], [chassis[1,2],chassis[1,3]],
+                track_view.plot([chassis[0,2],chassis[0,3]], [chassis[1,2],chassis[1,3]],
                          color=car_color, linestyle='-', linewidth=2)
-                plt.plot([chassis[0,3],chassis[0,0]], [chassis[1,3],chassis[1,0]],
+                track_view.plot([chassis[0,3],chassis[0,0]], [chassis[1,3],chassis[1,0]],
                          color=car_color, linestyle='-', linewidth=2)
                 if GUI.obstacles:
                     for obstacle in env.obstacles:
@@ -450,7 +413,7 @@ def start_simulation(GUI):
 # =============================================================================
 #           Train the networks with a mini batch.
 # =============================================================================
-            if buff.num_items > 2000:
+            if buff.num_items > 2000 and train:
                 batch, indeces = buff.get_batch(BATCH_SIZE)
                 states = np.asarray(np.atleast_2d([e[0] for e in batch]))
                 actions = np.asarray(np.atleast_2d([e[1] for e in batch]))
@@ -459,12 +422,12 @@ def start_simulation(GUI):
                 overs = np.asarray([e[4] for e in batch])
                 
                 if GUI.sensor_mode.get()=="LIDAR":
-                    states_1 = states[:,0:-3]
+                    states_1 = states[:,0:-2]
                     states_1 = np.expand_dims(states_1,axis=2)
-                    states_2 = states[:,-3:]
-                    new_states_1 = new_states[:,0:-3]
+                    states_2 = states[:,-2:]
+                    new_states_1 = new_states[:,0:-2]
                     new_states_1 = np.expand_dims(new_states_1,axis=2)
-                    new_states_2 = new_states[:,-3:]
+                    new_states_2 = new_states[:,-2:]
                 else:
                     states_1 = states[:,0:2]
                     states_2 = states[:,2:4]
@@ -473,18 +436,18 @@ def start_simulation(GUI):
     #                target_q_values = critic.target_model.predict([new_states_1,new_states_2,
     #                                                                   actor.target_model.predict([new_states_1,new_states_2])])  
                 y = critic.model.predict_on_batch([states_1,states_2])
-                q_preds = critic.model.predict_on_batch([new_states_1,new_states_2])
-                next_a_indeces = np.argmax(q_preds,axis=1)
-                maxQs = critic.target_model.predict_on_batch([new_states_1,new_states_2])
-                maxQs = maxQs[range(len(batch)),next_a_indeces]
-                targets = rewards + 0*GAMMA*maxQs*(1-overs)
+#                q_preds = critic.model.predict_on_batch([new_states_1,new_states_2])
+#                next_a_indeces = np.argmax(q_preds,axis=1)
+#                maxQs = critic.target_model.predict_on_batch([new_states_1,new_states_2])
+#                maxQs = maxQs[range(len(batch)),next_a_indeces]
+                targets = rewards  #+ GAMMA*maxQs*(1-overs)
                 a_indeces = []
                 for row in actions:
                     a_indeces.append(int(np.where(np.all(sampled_actions==row,axis=1))[0]))
-                errors = y[range(len(batch)),a_indeces] - targets
-                buff.update_priorities(indeces,errors)
+#                errors = (y[range(len(batch)),a_indeces] - targets)
+#                buff.update_priorities(indeces,errors)
                 y[range(len(batch)),a_indeces] = targets
-    #                critic.model.fit([states_1,states_2,actions], y.reshape(-1,1),batch_size=32)        
+#                    critic.model.fit([states_1,states_2,actions], y.reshape(-1,1),batch_size=32)        
                 critic.model.train_on_batch([states_1,states_2], y)
     #                a_for_grad = actor.model.predict([states_1,states_2])
     #                
@@ -499,14 +462,25 @@ def start_simulation(GUI):
     #                    
     #                actor.train(states, grads)
     #                actor.target_train()
-                if total_steps % TARGET_UPDATE_FREQ ==0:     
-                    critic.target_train()
+#                if total_steps % TARGET_UPDATE_FREQ == 0:     
+#                    critic.target_train()
+#                    TARGET_UPDATE_FREQ = int(TARGET_UPDATE_FREQ * TARGET_UPDATE_FREQ_EXP) 
             
+        
         elapsed_time = time.time() - start_time
+        buff.add_item(experience_batch)
         log.append(cumulative_r)
-        if i % 100 == 0:
-            print("Episode "+str(i)+"\tCumulative reward:"+str(cumulative_r)+"\tET: "+str(elapsed_time))
-            print("Best at: "+str(np.argmax(np.asarray(log)))+"\t Best reward:"+str(max(log)))
+        if int(i/100) > 0 and i % 100 == 0:
+            if best_reward < cumulative_r:
+                try:
+                    critic.model.save_weights("criticmodel_best.h5", overwrite=True)
+                    print("Weights saved successfully")
+                except:
+                    print("Cannot save the weights")
+                best_reward = deepcopy(cumulative_r)
+                best_test_index = deepcopy(i)
+            print("Episodes "+str(i-100)+"-"+str(i)+"\tAverage reward:"+str(np.mean(np.asarray(log[-100:])))+"\tET: "+str(elapsed_time))
+            print("Best at: "+str(best_test_index)+"\t Best reward:"+str(best_reward)+"\tStep: "+str(step))
 # =============================================================================
 #   Save the weights
 # =============================================================================

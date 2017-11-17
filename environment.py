@@ -245,7 +245,7 @@ class Environment:
 #            print("Longit reward: "+str((longit_dist - self.prev_longit_dist)))
 #            print("Lateral reward: "+str(-(lateral_dist-self.prev_lateral_dist)*25))
             reward = (longit_dist - self.longit_dist) \
-                        -abs(abs(lateral_dist/track_width-0.5)-abs(self.lateral_dist/self.track_width-0.5))*60
+                        -abs(abs(lateral_dist/track_width-0.5)-abs(self.lateral_dist/self.track_width-0.5))*10
             self.prev_longit_dist = deepcopy(self.longit_dist)
             self.prev_lateral_dist = deepcopy(self.lateral_dist)
             self.longit_dist = deepcopy(longit_dist)
