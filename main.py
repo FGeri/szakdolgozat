@@ -88,6 +88,7 @@ def start_simulation(GUI):
         try:
 #            actor.model.load_weights("actormodel.h5")
             critic.model.load_weights(GUI.nn_path.get())
+            
 #            actor.target_model.load_weights("actormodel.h5")
 #            critic.target_model.load_weights("criticmodel.h5")
             print("Weight load successfully")
@@ -138,6 +139,7 @@ def start_simulation(GUI):
     total_steps = 0
     best_reward = -100
     best_test_index = 0
+    best_test_step = 200
     for i in range(MAX_SIMULATION_LAPS):
 
         env.reset(False)
@@ -298,6 +300,7 @@ def start_simulation(GUI):
             elif not over:
                 trials = 0
                 r = float(env.get_reward(car.pos)/5)
+                r = np.clip(r, -10*GAMMA, 40)  
             r = np.clip(r, -10, 40)    
             
             car.prev_acc = a[0]
@@ -433,35 +436,19 @@ def start_simulation(GUI):
                     states_2 = states[:,2:4]
                     new_states_1 = new_states[:,0:2]
                     new_states_2 = new_states[:,2:4]
-    #                target_q_values = critic.target_model.predict([new_states_1,new_states_2,
-    #                                                                   actor.target_model.predict([new_states_1,new_states_2])])  
                 y = critic.model.predict_on_batch([states_1,states_2])
 #                q_preds = critic.model.predict_on_batch([new_states_1,new_states_2])
 #                next_a_indeces = np.argmax(q_preds,axis=1)
 #                maxQs = critic.target_model.predict_on_batch([new_states_1,new_states_2])
 #                maxQs = maxQs[range(len(batch)),next_a_indeces]
-                targets = rewards  #+ GAMMA*maxQs*(1-overs)
+                targets = rewards # + GAMMA*maxQs*(1-overs)
                 a_indeces = []
                 for row in actions:
                     a_indeces.append(int(np.where(np.all(sampled_actions==row,axis=1))[0]))
 #                errors = (y[range(len(batch)),a_indeces] - targets)
 #                buff.update_priorities(indeces,errors)
-                y[range(len(batch)),a_indeces] = targets
-#                    critic.model.fit([states_1,states_2,actions], y.reshape(-1,1),batch_size=32)        
+                y[range(len(batch)),a_indeces] = targets   
                 critic.model.train_on_batch([states_1,states_2], y)
-    #                a_for_grad = actor.model.predict([states_1,states_2])
-    #                
-    #                grads = critic.gradients(states, a_for_grad)
-    #                if GUI.draw_track.get():
-    #                    a[1]=math.degrees(a[1])
-    #                    print("Reward: "+str(r)+"\tActions: "+str(a))
-    #                    print("Grads:"+"\n\tMax:"+str(np.max(grads[:,:]))
-    #                                +"\n\tMin:"+str(np.min(grads[:,:]))
-    #                                +"\n\tMean:"+str(np.mean(grads[:,:]))
-    #                                +"\n\tStd:"+str(np.std(grads[:,:])))
-    #                    
-    #                actor.train(states, grads)
-    #                actor.target_train()
 #                if total_steps % TARGET_UPDATE_FREQ == 0:     
 #                    critic.target_train()
 #                    TARGET_UPDATE_FREQ = int(TARGET_UPDATE_FREQ * TARGET_UPDATE_FREQ_EXP) 
@@ -471,16 +458,20 @@ def start_simulation(GUI):
         buff.add_item(experience_batch)
         log.append(cumulative_r)
         if int(i/100) > 0 and i % 100 == 0:
-            if best_reward < cumulative_r:
+            
+            if (over and result and step < best_test_step):
+                best_reward = deepcopy(cumulative_r)
+                best_test_index = deepcopy(i)
+                best_test_step = deepcopy(step)
                 try:
-                    critic.model.save_weights("criticmodel_best.h5", overwrite=True)
+                    with open("C:\\Users\\Gergo\\workspace\\szakdolgozat\\Models\\criticmodel.json", "w") as outfile:
+                        json.dump(critic.model.to_json(), outfile)
+                    critic.model.save_weights("C:\\Users\\Gergo\\workspace\\szakdolgozat\\Models\\criticmodel_best_"+str(best_test_index)+".h5", overwrite=True)
                     print("Weights saved successfully")
                 except:
                     print("Cannot save the weights")
-                best_reward = deepcopy(cumulative_r)
-                best_test_index = deepcopy(i)
-            print("Episodes "+str(i-100)+"-"+str(i)+"\tAverage reward:"+str(np.mean(np.asarray(log[-100:])))+"\tET: "+str(elapsed_time))
-            print("Best at: "+str(best_test_index)+"\t Best reward:"+str(best_reward)+"\tStep: "+str(step))
+            print("Episodes "+str(i-100)+"-"+str(i)+"\tAverage reward:"+str(np.mean(np.asarray(log[-100:])))+"\tTest reward:"+str(cumulative_r)+"\tET: "+str(elapsed_time))
+            print("Best at: "+str(best_test_index)+"\tBest reward:"+str(best_reward)+"\tStep: "+str(best_test_step))
 # =============================================================================
 #   Save the weights
 # =============================================================================

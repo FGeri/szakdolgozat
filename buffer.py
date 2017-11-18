@@ -22,7 +22,7 @@ class Buffer:
         self.size = buffer_size
         self.num_items = 0
         self.e = 0.01
-        self.alfa = 0.7
+        self.alfa = 0.0
         
     def size(self):
         return self.size

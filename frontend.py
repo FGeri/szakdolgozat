@@ -76,7 +76,9 @@ class GUI(tk.Tk):
 #         Track
 # =============================================================================
         self.track_path = tk.StringVar()
-        self.track_path.set("track_2.png")
+        self.track_path.set(".\\Maps\\track_2.png")
+        
+        self.track_img = Image.open(self.track_path.get())
         
         self.time_step = tk.DoubleVar()
         self.time_step.set(0.25)
@@ -433,13 +435,13 @@ class SettingsPage(tk.Frame):
         path = filedialog.askopenfilename()
         if path:
             parent.track_path.set( path )
-            self.track_img = Image.open(parent.track_path.get())
+            parent.track_img = Image.open(parent.track_path.get())
             self.track_preview.clear()
             ax=self.track_preview.add_axes([0,0,1,1])
             ax.set_axis_off()
-            img = ax.imshow(self.track_img,aspect='auto')
+            img = ax.imshow(parent.track_img,aspect='auto')
             DPI = self.track_preview.get_dpi()
-            self.track_preview.set_size_inches((self.track_img.size[0]/2/float(DPI),self.track_img.size[1]/2/float(DPI)))
+            self.track_preview.set_size_inches((parent.track_img.size[0]/2/float(DPI),parent.track_img.size[1]/2/float(DPI)))
             ax.set_aspect('auto')
             self.canvas.draw()
             
@@ -484,8 +486,7 @@ class SimulatorPage(tk.Frame):
 #       Track and progress bar
 # =============================================================================
 
-#       Track        
-        controller.track_img = Image.open(controller.track_path.get())
+#       Track                
         track_figure = plt.figure()
         
         DPI = track_figure.get_dpi()
