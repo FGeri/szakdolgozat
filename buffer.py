@@ -45,7 +45,7 @@ class Buffer:
         return batch.values[:],batch.index.values
         
     def add_item(self,item):
-#        item.loc[0,'p']=self._getPriority(abs(item.loc[0,'r']))
+        item.loc[:,'p']=self._getPriority(abs(item.loc[:,'r']))
         if self.size > self.num_items:
             self.buffer=pd.concat([self.buffer,item],ignore_index=True)
         else:

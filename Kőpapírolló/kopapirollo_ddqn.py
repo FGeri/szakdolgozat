@@ -4,7 +4,7 @@ Created on Sat Nov 11 14:02:38 2017
 
 @author: Gergo
 """
-
+import pickle
 import keras
 import pandas as pd
 from keras.models import Sequential
@@ -12,6 +12,8 @@ from keras.layers import Dense, Activation,BatchNormalization
 from keras.optimizers import SGD
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 import numpy as np
+from matplotlib import pyplot as plt
+from keras.utils import plot_model
 
 def softmax(a):
     x = np.asarray(a,dtype=float)
@@ -27,6 +29,14 @@ def pick_action(state,strategy = None):
     s[3] = np.argmax(state[0,3*10:4*10])
     if not strategy:
         a = (int(s[3]/3)+2)%3 if s[3]/3 <3 else 0
+        if not(0 in [int(s[0]/3),int(s[1]/3)]):
+            a = 0
+        if not(1 in [int(s[0]/3),int(s[1]/3)]):
+            a = 1
+        if not(2 in [int(s[0]/3),int(s[1]/3)]):
+            a = 2
+        if s[1]/3 >=3:
+            a = 0
 #        a = np.random.random_integers(0,2)
     elif strategy =="LAST":
         a = (int(s[0]/3)+1)%3 if s[0]/3 <3 else 0 
@@ -38,12 +48,12 @@ def pick_action(state,strategy = None):
 np.random.seed(123)
 
 #Hyper parameters
-EPISODES = 500
-MAX_STEPS = 5 
-EXPLORE = 20
+EPISODES = 300
+MAX_STEPS = 40
+EXPLORE = 200
 
 LEARNING_RATE = 0.01
-TARGET_UPDATE_FREQ = 10
+TARGET_UPDATE_FREQ = 1
 TARGET_UPDATE_FREQ_EXP = 1.2
 
 BATCH_SIZE = 32
@@ -100,6 +110,7 @@ buffer = buffer.drop(buffer.index[0])
 
 total_steps = 0
 log = []
+average_q_values = []
 for i in range(EPISODES):
     total_reward = 0 
     state = np.hstack([state_encoder.transform(np.reshape(np.asarray([9]),[1,1])),
@@ -111,7 +122,8 @@ for i in range(EPISODES):
         epsilon -= 1/EXPLORE
 #        Agent's action
         y_pred = model.predict(state)
-        p = softmax(y_pred.reshape(-1)/max(epsilon,0.05))
+        average_q_values.append(np.mean(y_pred))
+        p = softmax(y_pred.reshape(-1)/max(epsilon,0.001))
         a = np.random.choice(range(3),1,p=p)
         
 #        Opponent's actions
@@ -163,7 +175,18 @@ for i in range(EPISODES):
 #        Update target network
         if total_steps % TARGET_UPDATE_FREQ == 0 :
             target.set_weights(model.get_weights())
-            TARGET_UPDATE_FREQ *= TARGET_UPDATE_FREQ_EXP
+            TARGET_UPDATE_FREQ =int(TARGET_UPDATE_FREQ * TARGET_UPDATE_FREQ_EXP)
+    log.append(total_reward)
     print("Episode: "+str(i)+"\tTotal reward: "+str(total_reward))
-    if i % 1000 == 0:
-        print("DEBUG")
+    
+with open("ddqn_q_values.txt", "wb") as fp:
+    pickle.dump(average_q_values, fp)    
+fig = plt.figure()
+plt.plot((MAX_STEPS+np.asarray(log))/2/MAX_STEPS*100)
+fig.suptitle('DQN', fontsize=20)
+plt.xlabel('Episodes', fontsize=18)
+plt.ylabel('Won games (%)', fontsize=16)
+fig.savefig('DQN_kopapirollo_python_target_nelkul.jpg')
+
+#plot = plt.figure()    
+#plt.plot(np.asarray(range(len(log))),np.asarray(log))    
