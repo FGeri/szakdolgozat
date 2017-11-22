@@ -19,6 +19,7 @@ import math
 import matplotlib
 import matplotlib.pyplot  as plt
 from environment import Environment
+from keras.models import model_from_json
 from car import Car
 import pandas as pd
 from frontend import *
@@ -70,9 +71,7 @@ def start_simulation(GUI):
     action_dim = 2  #Steering/Acceleration
     if GUI.sensor_mode.get()=="LIDAR":
         state_dim = LIDAR_RESOLUTION+3
-    else:
-        state_dim = 4  
-    
+ 
     sess = tf.Session()
     K.set_session(sess)
 
@@ -80,16 +79,24 @@ def start_simulation(GUI):
                                (-STEER_ANGLE_SCALE + 2*STEER_ANGLE_SCALE/STEER_ANGLE_RESOLUTION*y)/STEER_ANGLE_SCALE] \
                               for x in range(ACC_RESOLUTION+1) \
                               for y in range(STEER_ANGLE_RESOLUTION+1)])
-    critic = Critic(sess,GUI.sensor_mode.get(), state_dim, action_dim, BATCH_SIZE, LRC,(ACC_RESOLUTION+1)*(STEER_ANGLE_RESOLUTION+1))
+    critic = Critic(sess,GUI.sensor_mode.get(), state_dim, action_dim, BATCH_SIZE, LRC,(ACC_RESOLUTION+1)*(STEER_ANGLE_RESOLUTION+1),GUI.net_structure.get())
     critic.target_train()
-    buff = Buffer(BUFFER_SIZE)
+    buff = Buffer(BUFFER_SIZE,GUI.enable_per)
     if GUI.load_nn.get():
         try:
-            critic.model.load_weights(GUI.nn_path.get())
-            critic.target_model.load_weights(GUI.nn_path.get())
+            nn_model_file = open(GUI.nn_model_path.get(), 'r')
+            loaded_model_json = nn_model_file.read()
+            nn_model_file.close()
+            critic.model = model_from_json(loaded_model_json)
+            critic.target_model = model_from_json(loaded_model_json)
+        except:
+            print("Cannot load model")
+        try:
+            critic.model.load_weights(GUI.nn_weights_path.get())
+            critic.target_model.load_weights(GUI.nn_weights_path.get())
             print("Weight load successfully")
         except:
-            print("Cannot find the weight")
+            print("Cannot load weight")
     
     env = Environment(GUI.track_path.get(),np.array([[252,23],[252,82]]),
                 np.array([[251,30],[251,80]]),obstacles,np.array([255,255,255]),time_step=1)
@@ -121,9 +128,10 @@ def start_simulation(GUI):
               color=car_color, linestyle='-', linewidth=2)
     track_view.plot([chassis[0,3],chassis[0,0]], [chassis[1,3],chassis[1,0]],
               color=car_color, linestyle='-', linewidth=2)
-    if GUI.obstacles:
-              for obstacle in env.obstacles:
-                  plt.scatter(obstacle[0], obstacle[1],1,"k")
+#    TODO for later implementation
+#    if GUI.obstacles:
+#              for obstacle in env.obstacles:
+#                  plt.scatter(obstacle[0], obstacle[1],1,"k")
     GUI.draw_track_callback()
     GUI.update_idletasks()
     GUI.update()
@@ -180,9 +188,10 @@ def start_simulation(GUI):
                      color=car_color, linestyle='-', linewidth=2)
             track_view.plot([chassis[0,3],chassis[0,0]], [chassis[1,3],chassis[1,0]],
                      color=car_color, linestyle='-', linewidth=2)
-            if GUI.obstacles:
-                for obstacle in env.obstacles:
-                    plt.scatter(obstacle[0], obstacle[1],1,"k")
+#            TODO for later implementation
+#            if GUI.obstacles:
+#                for obstacle in env.obstacles:
+#                    plt.scatter(obstacle[0], obstacle[1],1,"k")
             GUI.draw_track_callback()
             GUI.update_idletasks()
             GUI.update()
@@ -193,14 +202,10 @@ def start_simulation(GUI):
             state = np.hstack([sensor_data[0:-1]*2/LIDAR_MAX_RANGE-1,
                                sensor_data[-1]*2-1,
                                car.speed/30])
-        else:
-            state = np.hstack([(car.pos[0]*2/GUI.track_img.size[0])-1,
-                                  (car.pos[1]*2/GUI.track_img.size[1])-1,
-                                  car.speed/30,
-                                  car.dir/(math.pi*2)])
+
         step = -1
         trials = 0
-        
+        trajectory = [car.pos]
         while not over and step < MAX_STEPS_PER_LAP-1:
             step += 1
             total_steps +=1
@@ -217,11 +222,7 @@ def start_simulation(GUI):
                 state_1 = np.expand_dims(state_1,axis=2)
                 
                 state_2 = np.atleast_2d(state[-2:])
-            else:
-                state_1 = np.atleast_2d(state[0:2])
-                state_2 = np.atleast_2d(state[2:4])
-            
-            
+              
             q_preds = critic.model.predict_on_batch([state_1,state_2])
             p = softmax(q_preds.reshape(-1)/(max(exploration[step]*train,0.0001)))
             a_index = np.random.choice(range((ACC_RESOLUTION+1)*(STEER_ANGLE_RESOLUTION+1)),1,p=p)
@@ -246,19 +247,14 @@ def start_simulation(GUI):
                 print(buff.buffer.tail(30))
                 print("EXPLORATIONS: ")
                 print(exploration)
-#                print("POLICY: ")
-#                print(policy)
                 print("Q prediction: ")
                 print(q_preds.reshape(ACC_RESOLUTION+1,STEER_ANGLE_RESOLUTION+1))
                 with open("plotting_data.txt", "wb") as fp:
                     pickle.dump(average_log, fp)
-                
 #                plot_model(critic.model, to_file='dense_model.png',show_shapes=True)
-                critic.model.save_weights("criticmodel.h5", overwrite=True)
                 GUI.debug_active.set(False)      
 # =============================================================================
-#(prev_pos,prev_dir,prev_speed),(acc,steer_angle),r,(car.pos,car.dir,car.speed) OR
-#(prev sensor information, prev orientation flag,prev_speed),(acc,steer_angle),r,(prev sensor information, prev orientation flag,prev_speed)
+#           State= [LIDAR data, speed]
 # =============================================================================
             if GUI.sensor_mode.get()=="LIDAR":
                 angle_to_axis = math.atan((env.lateral_dist-env.prev_lateral_dist)/max(abs(env.longit_dist-env.prev_longit_dist),0.001))
@@ -266,11 +262,7 @@ def start_simulation(GUI):
                 state = np.hstack([sensor_data[0:-1]*2/LIDAR_MAX_RANGE-1,
                                sensor_data[-1]*2-1,
                                prev_speed/30])
-            else:
-                state = np.hstack([(prev_pos[0]*2/GUI.track_img.size[0])-1,
-                                  (prev_pos[1]*2/GUI.track_img.size[1])-1,
-                                  prev_speed/30,
-                                  prev_dir/(math.pi*2)])
+
 # =============================================================================
 #             Observing reward
 # =============================================================================
@@ -285,17 +277,16 @@ def start_simulation(GUI):
             
             car.prev_acc = a[0]
             car.prev_steering = a[1]
+            
             cumulative_r = cumulative_r + r
+            
             if GUI.sensor_mode.get()=="LIDAR":
                 next_sensor_data = env.get_sensor_data(car.pos, car.dir,car.speed, LIDAR_RESOLUTION , LIDAR_MAX_RANGE)
                 next_state = np.hstack([next_sensor_data[0:-1]*2/LIDAR_MAX_RANGE-1,
                                next_sensor_data[-1]*2-1,
                                car.speed/30])
-            else:
-                next_state = np.hstack([(car.pos[0]*2/GUI.track_img.size[0])-1,
-                                  (car.pos[1]*2/GUI.track_img.size[1])-1,
-                                  car.speed/30,
-                                  car.dir/(math.pi*2)])
+    
+            trajectory.append(car.pos)
 # =============================================================================
 #           Store experience in repaly memory
 # =============================================================================
@@ -306,9 +297,11 @@ def start_simulation(GUI):
             
             if not(over and result):
                 if step > 0:
-                    r_trace = np.asarray([GAMMA**(j+1) for j in range(step)])*r
-                    r_trace = r_trace[-1::-1]
-                    experience_batch.loc[:,'r'] = np.clip(experience_batch.loc[:,'r']+r_trace,-10*GAMMA,100)
+#                    Propagate back Q values in case of Monte Carlo Tree Search
+                    if GUI.algorithm.get()=="MCTS":
+                        r_trace = np.asarray([GAMMA**(j+1) for j in range(step)])*r
+                        r_trace = r_trace[-1::-1]
+                        experience_batch.loc[:,'r'] = np.clip(experience_batch.loc[:,'r']+r_trace,-10*GAMMA,100)
                     experience_batch = pd.concat([experience_batch,experience],ignore_index=True)
                 else:
                     experience_batch = experience
@@ -336,19 +329,27 @@ def start_simulation(GUI):
                 GUI.track_figure_handle.clear()
                 track_view = GUI.track_figure_handle.add_axes([0,0,1,1])
                 track_view.imshow(GUI.track_img,aspect='auto')
-                track_view.plot([env.start_line[0,0],env.start_line[1,0]], [env.start_line[0,1],
+#                Plotting trajectory
+                for index,position in enumerate(trajectory):
+                    if index < len(trajectory)-1 and (trajectory[index+1][0]-position[0] != 0 or trajectory[index+1][1]-position[1]!=0):
+                        track_view.arrow(position[0], position[1],trajectory[index+1][0]-position[0], \
+                                         trajectory[index+1][1]-position[1], head_width=4, head_length=3, \
+                                         fc='k', ec='#A349A4', lw=1,length_includes_head=True)
+#                Plotting the car
+                track_view.plot([env.start_line[0,0],env.start_line[1,0]], [env.start_line[0,1],\
                           env.start_line[1,1]], color='g', linestyle='-', linewidth=1)
-                track_view.plot([chassis[0,0],chassis[0,1]], [chassis[1,0],chassis[1,1]],
+                track_view.plot([chassis[0,0],chassis[0,1]], [chassis[1,0],chassis[1,1]],\
                          color=car_color, linestyle='-', linewidth=2)
-                track_view.plot([chassis[0,1],chassis[0,2]], [chassis[1,1],chassis[1,2]],
+                track_view.plot([chassis[0,1],chassis[0,2]], [chassis[1,1],chassis[1,2]],\
                          color=car_color, linestyle='-', linewidth=2)
-                track_view.plot([chassis[0,2],chassis[0,3]], [chassis[1,2],chassis[1,3]],
+                track_view.plot([chassis[0,2],chassis[0,3]], [chassis[1,2],chassis[1,3]],\
                          color=car_color, linestyle='-', linewidth=2)
-                track_view.plot([chassis[0,3],chassis[0,0]], [chassis[1,3],chassis[1,0]],
+                track_view.plot([chassis[0,3],chassis[0,0]], [chassis[1,3],chassis[1,0]],\
                          color=car_color, linestyle='-', linewidth=2)
-                if GUI.obstacles:
-                    for obstacle in env.obstacles:
-                        plt.scatter(obstacle[0], obstacle[1],1,"k")
+#               TODO for later implementation
+#                if GUI.obstacles:
+#                    for obstacle in env.obstacles:
+#                        plt.scatter(obstacle[0], obstacle[1],1,"k")
                 GUI.draw_track_callback()
             GUI.update_idletasks()
             GUI.update()
@@ -370,33 +371,50 @@ def start_simulation(GUI):
                     new_states_1 = new_states[:,0:-2]
                     new_states_1 = np.expand_dims(new_states_1,axis=2)
                     new_states_2 = new_states[:,-2:]
-                else:
-                    states_1 = states[:,0:2]
-                    states_2 = states[:,2:4]
-                    new_states_1 = new_states[:,0:2]
-                    new_states_2 = new_states[:,2:4]
+                    
                 y = critic.model.predict_on_batch([states_1,states_2])
-#                q_preds = critic.target_model.predict_on_batch([new_states_1,new_states_2])
-#                next_a_indeces = np.argmax(q_preds,axis=1)
-#                maxQs = critic.target_model.predict_on_batch([new_states_1,new_states_2])
-#                maxQs = maxQs[range(len(batch)),next_a_indeces]
-                targets = rewards #+ GAMMA*maxQs*(1-overs)
+#                Calcuating algorthm specific target
+                if GUI.algorithm.get()=="DQN":
+                    q_preds = critic.target_model.predict_on_batch([new_states_1,new_states_2])
+                    next_a_indeces = np.argmax(q_preds,axis=1)
+                    maxQs = critic.target_model.predict_on_batch([new_states_1,new_states_2])
+                    maxQs = maxQs[range(len(batch)),next_a_indeces]
+                    targets = rewards + GAMMA*maxQs*(1-overs)
+                elif GUI.algorithm.get()=="DDQN":
+                    q_preds = critic.model.predict_on_batch([new_states_1,new_states_2])
+                    next_a_indeces = np.argmax(q_preds,axis=1)
+                    maxQs = critic.target_model.predict_on_batch([new_states_1,new_states_2])
+                    maxQs = maxQs[range(len(batch)),next_a_indeces]
+                    targets = rewards + GAMMA*maxQs*(1-overs)
+                elif GUI.algorithm.get()=="MCTS":
+                    targets = rewards
+#                    
                 a_indeces = []
                 for row in actions:
                     a_indeces.append(int(np.where(np.all(sampled_actions==row,axis=1))[0]))
-#                errors = (y[range(len(batch)),a_indeces] - targets)
-#                buff.update_priorities(indeces,errors)
+                
+#                Update experience priorities if PER is enabled
+                if GUI.enable_per.get():
+                    errors = (y[range(len(batch)),a_indeces] - targets)
+                    buff.update_priorities(indeces,errors)
+
+#                Train network    
                 y[range(len(batch)),a_indeces] = targets   
                 critic.model.train_on_batch([states_1,states_2], y)
-#                if total_steps % TARGET_UPDATE_FREQ == 0:     
-#                    critic.target_train()
-#                    TARGET_UPDATE_FREQ = int(TARGET_UPDATE_FREQ * TARGET_UPDATE_FREQ_EXP) 
+
+#                Target network update periodically
+                if GUI.algorithm.get()=="DQN" or GUI.algorithm.get()=="DDQN":
+                    if total_steps % TARGET_UPDATE_FREQ == 0:     
+                        critic.target_train()
+                        TARGET_UPDATE_FREQ = int(TARGET_UPDATE_FREQ * TARGET_UPDATE_FREQ_EXP) 
             
-        
         elapsed_time = time.time() - start_time
         buff.add_item(experience_batch)
         log.append(cumulative_r)
         average_log.append(np.mean(np.asarray(log[-100:])))
+# =============================================================================
+#         Save best tested model and print out statistical and debug data
+# =============================================================================
         if int(i/100) > 0 and i % 100 == 0:
             
             if (over and result and step < best_test_step):
@@ -404,25 +422,25 @@ def start_simulation(GUI):
                 best_test_index = deepcopy(i)
                 best_test_step = deepcopy(step)
                 try:
-                    with open("C:\\Users\\Gergo\\workspace\\szakdolgozat\\Models\\criticmodel.json", "w") as outfile:
+                    with open("\\Models\\model_"+GUI.algorithm.get()+"_"+GUI.net_structure.get()+".json", "w") as outfile:
                         json.dump(critic.model.to_json(), outfile)
-                    critic.model.save_weights("C:\\Users\\Gergo\\workspace\\szakdolgozat\\Models\\criticmodel_best_"+str(best_test_index)+".h5", overwrite=True)
+                    critic.model.save_weights("\\Models\\weights_"+GUI.algorithm.get()+"_"+GUI.net_structure.get()+"_best_"+str(best_test_index)+".h5", overwrite=True)
                     print("Weights saved successfully")
                 except:
                     print("Cannot save the weights")
             print("Episodes "+str(i-100)+"-"+str(i)+"\tAverage reward:"+str(np.mean(np.asarray(log[-100:])))+"\tTest reward:"+str(cumulative_r)+"\tET: "+str(elapsed_time))
             print("Best at: "+str(best_test_index)+"\tBest reward:"+str(best_reward)+"\tStep: "+str(best_test_step))
 # =============================================================================
-#   Save the weights
+#   Save the model and the weights
 # =============================================================================
     buff.buffer.to_json('data_x.json')
     if (GUI.save_nn.get()):
         print("Now we save model")
         with open("plotting_data.txt", "wb") as fp:
             pickle.dump(average_log, fp)
-        critic.model.save_weights("criticmodel.h5", overwrite=True)
-        with open("criticmodel.json", "w") as outfile:
-            json.dump(critic.model.to_json(), outfile)
+        critic.model.save_weights("weights_"+GUI.net_structure.get()+"_last.h5", overwrite=True)
+        with open("model_"+GUI.net_structure.get()+"_.json", "w") as outfile:
+            outfile.write(critic.model.to_json())
 
 
 

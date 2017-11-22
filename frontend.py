@@ -6,6 +6,8 @@ Created on Sat Sep  9 16:20:03 2017
 """
 
 #%%
+import os
+import numpy as np
 import matplotlib
 import matplotlib.pyplot  as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
@@ -87,16 +89,19 @@ class GUI(tk.Tk):
         self.draw_track.set(False)
         
         self.obstacles = tk.BooleanVar()
-        self.obstacles.set(False)
+        self.obstacles.set(True)
 
 # =============================================================================
 #         NN
 # =============================================================================
         self.episodes = tk.IntVar()
-        self.episodes.set(100000)
+        self.episodes.set(10000)
         
         self.memory_size = tk.IntVar()
-        self.memory_size.set(500000)
+        self.memory_size.set(1000000)
+        
+        self.enable_per = tk.BooleanVar()
+        self.enable_per.set(True)
         
         self.enable_training = tk.BooleanVar()
         self.enable_training.set(True)
@@ -104,8 +109,11 @@ class GUI(tk.Tk):
         self.load_nn = tk.BooleanVar()
         self.load_nn.set(False)
         
-        self.nn_path = tk.StringVar()
-        self.nn_path.set("criticmodel_best.h5")
+        self.nn_model_path = tk.StringVar()
+        self.nn_model_path.set(".\\Models\\CONV_DDQN\\model_1D_DDQN_CONVOLUTION.json")
+        
+        self.nn_weights_path = tk.StringVar()
+        self.nn_weights_path.set(".\\Models\\CONV_DDQN\\weights_1D_DDQN_CONVOLUTION_best_3000_best_with_per.h5")
         
         self.batch_size = tk.IntVar()
         self.batch_size.set(256)
@@ -113,8 +121,8 @@ class GUI(tk.Tk):
         self.learning_rate = tk.DoubleVar()
         self.learning_rate.set(0.00005)
         
-        self.exploration_function = tk.StringVar()
-        self.exploration_function.set("Softmax,proportional decay")
+        self.net_structure = tk.StringVar()
+        self.net_structure.set("1D_CONVOLUTION")
         
         self.exploration_decay = tk.DoubleVar()
         self.exploration_decay.set(800.0)
@@ -123,7 +131,7 @@ class GUI(tk.Tk):
         self.gamma.set(0.95)
         
         self.algorithm = tk.StringVar()
-        self.algorithm.set("Monte Carlo")
+        self.algorithm.set("DDQN")
         
         self.save_nn = tk.BooleanVar()
         self.save_nn.set(True)
@@ -133,7 +141,7 @@ class GUI(tk.Tk):
 # =============================================================================
         self.iconbitmap("Race_car.ico")
         tk.Tk.wm_title(self, "Racing car simulator")
-        self.geometry("800x800")
+        self.geometry("1100x550")
         self.grid_columnconfigure(0, weight=1)
         container = tk.Frame(self)
         container.grid(sticky = "nsew")
@@ -218,7 +226,10 @@ class SettingsPage(tk.Frame):
         right_header.grid(columnspan = 2, sticky="nsew")
         
         for col_num in range(settings_container.grid_size()[0]):
-            settings_container.grid_columnconfigure(col_num, weight = 1)
+            settings_container.grid_columnconfigure(col_num,minsize=300, weight = 1)
+            if col_num == 2:
+                settings_container.grid_columnconfigure(col_num,minsize=500, weight = 1)
+            
 # =============================================================================
 #        Car settings 
 # =============================================================================
@@ -239,12 +250,12 @@ class SettingsPage(tk.Frame):
 #        sensor_mode
         sensor_mode_label = ttk.Label(left_container, text = "Sensor mode")
         sensor_mode_label.grid(row = 3 , column = 0, sticky = "e", padx=4)    
-        sensor_mode = ttk.Combobox ( left_container, values = ("LIDAR","GLOBAL"),
+        sensor_mode = ttk.Combobox ( left_container, values = ("LIDAR"),
                                     textvariable = parent.master.sensor_mode)
         sensor_mode.grid(row = 3, column = 1, sticky = "w", padx=4)
         
 #        lidar_res
-        lidar_res_label = ttk.Label(left_container, text = "Liadr resolution:")
+        lidar_res_label = ttk.Label(left_container, text = "Lidar resolution:")
         lidar_res_label.grid(row = 4, column = 0, sticky = "e", padx=4)
         lidar_res_entry = ttk.Entry(left_container,
                                  textvariable = parent.master.lidar_res)
@@ -285,6 +296,11 @@ class SettingsPage(tk.Frame):
                                  textvariable = parent.master.steering_res)
         steering_res_entry.grid(row = 9, column = 1, sticky = "w", padx=4)        
         
+#        time_step
+        time_step_lable = ttk.Label (left_container, text = "Timestep(s)")
+        time_step_lable.grid(row = 10, column = 0, stick = "e", padx = 4)
+        time_step_entry = ttk.Entry(left_container, textvariable = parent.master.time_step)
+        time_step_entry.grid(row = 10, column = 1, sticky = "w", padx = 4)
         
         for row_num in range(left_container.grid_size()[1]):
             left_container.grid_rowconfigure(row_num, minsize=30)
@@ -293,29 +309,27 @@ class SettingsPage(tk.Frame):
 #       Track settings  
 # =============================================================================
 #        load_track
-        load_track_label = ttk.Label(mid_container, textvariable = parent.master.track_path)
+        load_track_label = ttk.Label(mid_container, text = "track_2.png")
         load_track_label.grid(row = 1, column = 1, sticky = "w", padx=4)
         load_track_btn = ttk.Button(mid_container, text =  "Select track",
-                                command = lambda: self.load_track(parent.master))
+                                command = lambda: self.load_track(parent.master,load_track_label))
         load_track_btn.grid(row = 1, column = 0, sticky = "e", padx = 4)
         
-#        time_step
-        time_step_lable = ttk.Label (mid_container, text = "Timestep(s)")
-        time_step_lable.grid(row = 2, column = 0, stick = "e", padx = 4)
-        time_step_entry = ttk.Entry(mid_container, textvariable = parent.master.time_step)
-        time_step_entry.grid(row = 2, column = 1, sticky = "w", padx = 4)
+
         
 #        obstacles
-        obstacles_label = ttk.Label(mid_container, text = "Obstacles?")
-        obstacles_label.grid(row = 3, column = 0, sticky = "e", padx=4)
-        obstacles_check = ttk.Checkbutton(mid_container, variable = parent.master.obstacles)
-        obstacles_check.grid(row = 3, column = 1, sticky = "w", padx=4)
+#        TODO for later implementation
+#        obstacles_label = ttk.Label(mid_container, text = "Obstacles?")
+#        obstacles_label.grid(row = 3, column = 0, sticky = "e", padx=4)
+#        obstacles_check = ttk.Checkbutton(mid_container, variable = parent.master.obstacles,\
+#                                 command = lambda: self.enable_obstacles(parent.master,parent.master.obstacles.get()))
+#        obstacles_check.grid(row = 3, column = 1, sticky = "w", padx=4)
         
 #        draw_track
         draw_track_label = ttk.Label(mid_container, text = "Draw track?")
-        draw_track_label.grid(row = 4, column = 0, sticky = "e", padx=4)
+        draw_track_label.grid(row = 2, column = 0, sticky = "e", padx=4)
         draw_track_check = ttk.Checkbutton(mid_container, variable = parent.master.draw_track)
-        draw_track_check.grid(row = 4, column = 1, sticky = "w", padx=4)
+        draw_track_check.grid(row = 2, column = 1, sticky = "w", padx=4)
         
         for row_num in range(mid_container.grid_size()[1]):
             mid_container.grid_rowconfigure(row_num, minsize=30)
@@ -330,7 +344,7 @@ class SettingsPage(tk.Frame):
         ax.set_aspect('auto')
         self.canvas = FigureCanvasTkAgg(self.track_preview, mid_container) 
         self.canvas.show()
-        self.canvas.get_tk_widget().grid(row = 5, column = 0,columnspan=2, sticky = "w", padx=4)
+        self.canvas.get_tk_widget().grid(row = 4, column = 0,columnspan=2, sticky = "w", padx=4)
         
 # =============================================================================
 #       NN Settings
@@ -348,69 +362,81 @@ class SettingsPage(tk.Frame):
         load_nn_label = ttk.Label(right_container,text = "Load NN model?")
         load_nn_label.grid(row = 2, column = 0, sticky = "e", padx = 4)
         
+#        load_nn_model_btn
+        load_nn_model_btn_label = ttk.Label(right_container, text = "model_DDQN_1D_CONVOLUTION.json")
+        load_nn_model_btn_label.grid(row = 3, column = 1, sticky = "w", padx=4)
+        load_nn_model_btn = ttk.Button(right_container, text =  "Select model",
+                                command = lambda:  self.load_nn_model(parent.master,load_nn_model_btn_label))
+        load_nn_model_btn.grid(row = 3, column = 0, sticky = "e", padx = 4)  
         
-#        load_nn_btn
-        load_nn_btn_label = ttk.Label(right_container, textvariable = parent.master.nn_path)
-        load_nn_btn_label.grid(row = 3, column = 1, sticky = "w", padx=4)
-        load_nn_btn = ttk.Button(right_container, text =  "Select NN",
-                                command = lambda:  self.load_nn(parent.master))
-        load_nn_btn.grid(row = 3, column = 0, sticky = "e", padx = 4)  
+#        load_nn_weights_btn
+        load_nn_weights_btn_label = ttk.Label(right_container, text = "weights_DDQN_1D_CONVOLUTION_best_3000_with_per.h5")
+        load_nn_weights_btn_label.grid(row = 4, column = 1, sticky = "w", padx=4)
+        load_nn_weights_btn = ttk.Button(right_container, text =  "Select weights",
+                                command = lambda:  self.load_nn_weights(parent.master,load_nn_weights_btn_label))
+        load_nn_weights_btn.grid(row = 4, column = 0, sticky = "e", padx = 4)  
         
 #        enable_training
         enable_training_checkbox = ttk.Checkbutton(right_container, variable = parent.master.enable_training)
-        enable_training_checkbox.grid(row = 4, column = 1, sticky = "w", padx = 4)
+        enable_training_checkbox.grid(row = 5, column = 1, sticky = "w", padx = 4)
         enable_training_label = ttk.Label(right_container,text = "Train model:")
-        enable_training_label.grid(row = 4, column = 0, sticky = "e", padx = 4)
+        enable_training_label.grid(row = 5, column = 0, sticky = "e", padx = 4)
         
 #        learning_rate
         learning_rate_input = ttk.Entry(right_container, textvariable = parent.master.learning_rate )
-        learning_rate_input.grid(row = 5 ,  column = 1, sticky = "w", padx = 4)
+        learning_rate_input.grid(row = 6 ,  column = 1, sticky = "w", padx = 4)
         learning_rate_label = ttk.Label (right_container, text = "Learning rate:")
-        learning_rate_label.grid(row = 5, column = 0, sticky = "e", padx = 4)
+        learning_rate_label.grid(row = 6, column = 0, sticky = "e", padx = 4)
         
 #        memory_size
         memory_size_input = ttk.Entry(right_container, textvariable = parent.master.memory_size )
-        memory_size_input.grid(row = 6 ,  column = 1, sticky = "w", padx = 4)
+        memory_size_input.grid(row = 7 ,  column = 1, sticky = "w", padx = 4)
         memory_size_label = ttk.Label (right_container, text = "Memory size:")
-        memory_size_label.grid(row = 6, column = 0, sticky = "e", padx = 4)
+        memory_size_label.grid(row = 7, column = 0, sticky = "e", padx = 4)
+        
+#        enable_per
+        enable_per_checkbox = ttk.Checkbutton(right_container, variable = parent.master.enable_per)
+        enable_per_checkbox.grid(row = 8, column = 1, sticky = "w", padx = 4)
+        enable_per_label = ttk.Label(right_container,text = "Use PER:")
+        enable_per_label.grid(row = 8, column = 0, sticky = "e", padx = 4)        
         
 #        batch_size
         batch_size_input = ttk.Entry(right_container, textvariable = parent.master.batch_size )
-        batch_size_input.grid(row = 7 ,  column = 1, sticky = "w", padx = 4)
+        batch_size_input.grid(row = 9 ,  column = 1, sticky = "w", padx = 4)
         batch_size_label = ttk.Label (right_container, text = "Batch size:")
-        batch_size_label.grid(row = 7, column = 0, sticky = "e", padx = 4)
+        batch_size_label.grid(row = 9, column = 0, sticky = "e", padx = 4)
         
 #        gamma
         gamma_input = ttk.Entry(right_container, textvariable = parent.master.gamma )
-        gamma_input.grid(row = 8 ,  column = 1, sticky = "w", padx = 4)
+        gamma_input.grid(row = 10 ,  column = 1, sticky = "w", padx = 4)
         gamma_label = ttk.Label (right_container, text = "Gamma:")
-        gamma_label.grid(row = 8, column = 0, sticky = "e", padx = 4)
+        gamma_label.grid(row = 10, column = 0, sticky = "e", padx = 4)
         
 #        algorithm
         algorithm_label = ttk.Label(right_container, text = "RL Algorithm")
-        algorithm_label.grid(row = 9 , column = 0, sticky = "e", padx=4)    
-        algorithm = ttk.Combobox ( right_container, values = ("DQN","DDQN","Monte Carlo"),
+        algorithm_label.grid(row = 11 , column = 0, sticky = "e", padx=4)    
+        algorithm = ttk.Combobox ( right_container, values = ("DQN","DDQN","MCTS"),
                                     textvariable = parent.master.algorithm)
-        algorithm.grid(row = 9, column = 1, sticky = "w", padx=4)
+        algorithm.grid(row = 11, column = 1, sticky = "w", padx=4)
         
-#        exploration_function
-        exploration_function_label = ttk.Label(right_container, text = "Exploration func")
-        exploration_function_label.grid(row = 10 , column = 0, sticky = "e", padx=4)    
-        exploration_function = ttk.Combobox ( right_container, values = ("E-Greedy","Softmax,proportional decay"),
-                                    textvariable = parent.master.exploration_function)
-        exploration_function.grid(row = 10, column = 1, sticky = "w", padx=4)
+#        net_structure
+        net_structure_label = ttk.Label(right_container, text = "Net structure")
+        net_structure_label.grid(row = 12 , column = 0, sticky = "e", padx=4)    
+        net_structure = ttk.Combobox ( right_container, values = ("SIMPLE_DENSE","1D_CONVOLUTION"),
+                                    textvariable = parent.master.net_structure)
+        net_structure.grid(row = 12, column = 1, sticky = "w", padx=4)
         
 #        exploration_decay
         exploration_decay_input = ttk.Entry(right_container, textvariable = parent.master.exploration_decay )
-        exploration_decay_input.grid(row = 11 ,  column = 1, sticky = "w", padx = 4)
+        exploration_decay_input.grid(row = 13 ,  column = 1, sticky = "w", padx = 4)
         exploration_decay_label = ttk.Label (right_container, text = "Exploration decay:")
-        exploration_decay_label.grid(row = 11, column = 0, sticky = "e", padx = 4)
+        exploration_decay_label.grid(row = 13, column = 0, sticky = "e", padx = 4)
         
 #        save_nn
         save_nn_checkbox = ttk.Checkbutton(right_container, variable = parent.master.save_nn)
-        save_nn_checkbox.grid(row = 12, column = 1, sticky = "w", padx = 4)
+        save_nn_checkbox.grid(row = 14, column = 1, sticky = "w", padx = 4)
         save_nn_label = ttk.Label(right_container,text = "Save NN model?")
-        save_nn_label.grid(row = 12, column = 0, sticky = "e", padx = 4)
+        save_nn_label.grid(row = 14, column = 0, sticky = "e", padx = 4)
         
         for row_num in range(right_container.grid_size()[1]):
             right_container.grid_rowconfigure(row_num, minsize=30)
@@ -431,8 +457,11 @@ class SettingsPage(tk.Frame):
         path = filedialog.askopenfilename()
         if path:
             parent.gg_path.set( path )
-    def load_track(self,parent):
-        path = filedialog.askopenfilename()
+            
+    def load_track(self,parent,label):
+        path = filedialog.askopenfilename(initialdir = os.getcwd()+"\\Maps",\
+                                          title = "Select map",\
+                                          filetypes = [("png files","*.png"),("jpeg files","*.jpg"),("bmp files","*.bmp")],)
         if path:
             parent.track_path.set( path )
             parent.track_img = Image.open(parent.track_path.get())
@@ -444,14 +473,24 @@ class SettingsPage(tk.Frame):
             self.track_preview.set_size_inches((parent.track_img.size[0]/2/float(DPI),parent.track_img.size[1]/2/float(DPI)))
             ax.set_aspect('auto')
             self.canvas.draw()
-            
-            
-    def load_nn(self,parent):
-        path = filedialog.askopenfilename()
-        if path:
-            parent.nn_path.set( path )
-
+            label['text'] = os.path.split(path)[1]
         
+    def load_nn_model(self,parent,label):
+        path = filedialog.askopenfilename(initialdir = os.getcwd()+"\\Models",\
+                                          title = "Select neural network model",\
+                                          filetypes = [("json files","*.json")],)
+        if path:
+            parent.nn_model_path.set( path )
+            label['text'] = os.path.split(path)[1]
+
+    def load_nn_weights(self,parent,label):
+        path = filedialog.askopenfilename(initialdir = os.getcwd()+"\\Models",\
+                                          title = "Select neural network weights",\
+                                          filetypes = [("h5 files","*.h5")],)
+        if path:
+            parent.nn_weights_path.set( path )
+            label['text'] = os.path.split(path)[1]
+
         
 class SimulatorPage(tk.Frame):
 

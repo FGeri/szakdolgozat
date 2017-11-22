@@ -23,12 +23,13 @@ HIDDEN_1 = 80
 HIDDEN_2 = 40
 
 class Critic:
-    def __init__(self, sess, mode, state_size, action_size, BATCH_SIZE, LR,output_size):
+    def __init__(self, sess, mode, state_size, action_size, BATCH_SIZE, LR,output_size, structure):
         self.sess = sess
         self.BATCH_SIZE = BATCH_SIZE
         self.LR = LR
         self.action_size = action_size
         self.mode = mode
+        self.structure = structure
         
         K.set_learning_phase(1)
         K.set_session(sess)
@@ -45,11 +46,6 @@ class Critic:
                 self.state_1: np.expand_dims(np.array(states[:,0:-2]),axis=2),
                 self.state_2: np.array(states[:,-2:]).reshape([-1,2])
             })[0]
-        else:
-            return self.sess.run(self.action_grads, feed_dict={
-                self.state_1: np.array(states[:,0:2]),
-                self.state_2: np.array(states[:,2:4])
-            })[0]
 
     def target_train(self):
         self.target_model.set_weights(self.model.get_weights())
@@ -64,12 +60,15 @@ class Critic:
             inp_1 = Input(shape=[state_size-2,1],name='state_1')
             inp_2 = Input(shape=[2],name='state_2')
 #            Branch 1
-            conv_10 = Conv1D(filters=16,kernel_size=4,strides=1,activation="relu")(inp_1)
-            conv_11 = Conv1D(filters=16,kernel_size=3,strides=1,activation="relu")(conv_10)
-            conv_13 = Conv1D(filters=8,kernel_size=3,strides=1,activation="relu")(conv_11)
-            pool_14 = MaxPool1D(pool_size=2)(conv_13)
-            flat_19 = Flatten()(pool_14)
-            
+            if self.structure == "SIMPLE_DENSE":
+                flat_19 = Flatten()(inp_1)
+            elif self.structure == "1D_CONVOLUTION":
+                conv_10 = Conv1D(filters=16,kernel_size=4,strides=1,activation="relu")(inp_1)
+                conv_11 = Conv1D(filters=16,kernel_size=3,strides=1,activation="relu")(conv_10)
+                conv_13 = Conv1D(filters=8,kernel_size=3,strides=1,activation="relu")(conv_11)
+                pool_14 = MaxPool1D(pool_size=2)(conv_13)
+                flat_19 = Flatten()(pool_14)
+                
 ##            Branch 2
 #            dense_20 = Dense(128)(inp_2)
 #            Branch 1+2

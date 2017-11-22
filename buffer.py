@@ -16,10 +16,11 @@ def softmax(a):
     return  exps/exps.sum()
 
 class Buffer:
-    def __init__(self,buffer_size):
+    def __init__(self,buffer_size,enable_per):
         self.buffer = pd.DataFrame([[np.array([]),np.array([]),0.,np.array([]),False,"",0.]],columns=['s', 'a', 'r', "s'", 'over','id','p'])
         self.buffer = self.buffer.drop(self.buffer.index[0])
         self.size = buffer_size
+        self.per = enable_per
         self.num_items = 0
         self.e = 0.01
         self.alfa = 0.0
@@ -38,10 +39,12 @@ class Buffer:
         if self.num_items < batch_size:
             batch = self.buffer
         else:
-#            p = self.buffer.loc[:,'p']
-#            p = p / np.sum(p)
-#            batch = self.buffer.sample(batch_size,replace=False,weights = p)
-            batch = self.buffer.sample(batch_size,replace=False)
+            if self.enable_per:
+                p = self.buffer.loc[:,'p']
+                p = p / np.sum(p)
+                batch = self.buffer.sample(batch_size,replace=False,weights = p)
+            else:
+                batch = self.buffer.sample(batch_size,replace=False)
         return batch.values[:],batch.index.values
         
     def add_item(self,item):
