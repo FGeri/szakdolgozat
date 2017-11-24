@@ -7,7 +7,7 @@ Created on Fri Sep 29 19:33:26 2017
 import pickle
 import hashlib
 import time
-import pydot_ng as pydot
+#import pydot_ng as pydot
 from actor import Actor
 from critic import Critic
 from buffer import Buffer
@@ -39,8 +39,7 @@ def start_simulation(GUI):
 # =============================================================================
 #   Car params  
 # =============================================================================
-#    LIDAR_RESOLUTION = GUI.lidar_res.get()
-    LIDAR_RESOLUTION = 20
+    LIDAR_RESOLUTION = GUI.lidar_res.get()
     LIDAR_MAX_RANGE = GUI.lidar_range.get()
     
     ACC_SCALE = GUI.max_acc.get()
@@ -314,6 +313,7 @@ def start_simulation(GUI):
 #             Draw the track and car
 # =============================================================================
             if GUI.close_flag:
+                GUI.close_flag = False
                 return
             if GUI.draw_track.get():
                 theta = car.dir
@@ -422,9 +422,9 @@ def start_simulation(GUI):
                 best_test_index = deepcopy(i)
                 best_test_step = deepcopy(step)
                 try:
-                    with open("\\Models\\model_"+GUI.algorithm.get()+"_"+GUI.net_structure.get()+".json", "w") as outfile:
+                    with open(".\\Models\\model_"+GUI.algorithm.get()+"_"+GUI.net_structure.get()+".json", "w") as outfile:
                         json.dump(critic.model.to_json(), outfile)
-                    critic.model.save_weights("\\Models\\weights_"+GUI.algorithm.get()+"_"+GUI.net_structure.get()+"_best_"+str(best_test_index)+".h5", overwrite=True)
+                    critic.model.save_weights(".\\Models\\weights_"+GUI.algorithm.get()+"_"+GUI.net_structure.get()+"_best_"+str(best_test_index)+".h5", overwrite=True)
                     print("Weights saved successfully")
                 except:
                     print("Cannot save the weights")
@@ -438,8 +438,8 @@ def start_simulation(GUI):
         print("Now we save model")
         with open("plotting_data.txt", "wb") as fp:
             pickle.dump(average_log, fp)
-        critic.model.save_weights("weights_"+GUI.net_structure.get()+"_last.h5", overwrite=True)
-        with open("model_"+GUI.net_structure.get()+"_.json", "w") as outfile:
+        critic.model.save_weights(".\\Models\\weights_"+GUI.net_structure.get()+"_last.h5", overwrite=True)
+        with open(".\\Models\\model_"+GUI.net_structure.get()+"_.json", "w") as outfile:
             outfile.write(critic.model.to_json())
 
 

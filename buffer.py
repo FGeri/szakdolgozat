@@ -20,7 +20,7 @@ class Buffer:
         self.buffer = pd.DataFrame([[np.array([]),np.array([]),0.,np.array([]),False,"",0.]],columns=['s', 'a', 'r', "s'", 'over','id','p'])
         self.buffer = self.buffer.drop(self.buffer.index[0])
         self.size = buffer_size
-        self.per = enable_per
+        self.enable_per = enable_per
         self.num_items = 0
         self.e = 0.01
         self.alfa = 0.0

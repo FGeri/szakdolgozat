@@ -172,6 +172,10 @@ class GUI(tk.Tk):
         frame = self.frames[cont]
         frame.tkraise()
         
+    def stop_training(self):
+        self.close_flag = True
+        self.show_frame(SettingsPage)
+        
     def start_simulation(self):
         self.show_frame(SimulatorPage)
         self.start_simulation_handler(self)
@@ -547,7 +551,7 @@ class SimulatorPage(tk.Frame):
 # =============================================================================
 
         btn1=ttk.Button(right_container, text="Settings",
-                            command=lambda: controller.show_frame(SettingsPage))
+                            command=lambda: controller.stop_training())
         btn1.grid(row = 1, column = 0, sticky = "e")
         btn2=ttk.Button(right_container, text="DEBUG",
                             command=lambda: controller.enter_debug_mode())
